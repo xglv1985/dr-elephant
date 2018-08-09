@@ -61,9 +61,10 @@ class DriverHeuristic(private val heuristicConfigurationData: HeuristicConfigura
         SPARK_DRIVER_MEMORY_KEY,
         formatProperty(evaluator.driverMemoryBytes.map(MemoryFormatUtils.bytesToString))
       ),
-      new HeuristicResultDetails(
-        "Ratio of time spent in GC to total time", evaluator.ratio.toString
-      ),
+      //Removing driver GC heuristics for now
+//      new HeuristicResultDetails(
+//        "Ratio of time spent in GC to total time", evaluator.ratio.toString
+//      ),
       new HeuristicResultDetails(
         SPARK_DRIVER_CORES_KEY,
         formatProperty(evaluator.driverCores.map(_.toString))
@@ -76,6 +77,7 @@ class DriverHeuristic(private val heuristicConfigurationData: HeuristicConfigura
     )
     if(evaluator.severityJvmUsedMemory != Severity.NONE) {
       resultDetails = resultDetails :+ new HeuristicResultDetails("Driver Peak JVM used Memory", "The allocated memory for the driver (in " + SPARK_DRIVER_MEMORY_KEY + ") is much more than the peak JVM used memory by the driver.")
+      resultDetails = resultDetails :+ new HeuristicResultDetails("Suggested spark.driver.memory", MemoryFormatUtils.roundOffMemoryStringToNextInteger(MemoryFormatUtils.bytesToString(((1 + BUFFER_FRACTION)  * (evaluator.maxDriverPeakJvmUsedMemory + reservedMemory)).toLong)))
     }
     if (evaluator.severityGc != Severity.NONE) {
       resultDetails = resultDetails :+ new HeuristicResultDetails("Gc ratio high", "The driver is spending too much time on GC. We recommend increasing the driver memory.")
@@ -113,6 +115,7 @@ object DriverHeuristic {
   val EXECUTION_MEMORY = "executionMemory"
   val STORAGE_MEMORY = "storageMemory"
   val JVM_USED_MEMORY = "jvmUsedMemory"
+  val BUFFER_FRACTION = 0.2
 
   // 300 * FileUtils.ONE_MB (300 * 1024 * 1024)
   val reservedMemory : Long = 314572800
@@ -172,10 +175,10 @@ object DriverHeuristic {
 
     //The following thresholds are for checking if the memory and cores values (driver) are above normal. These thresholds are experimental, and may change in the future.
     val DEFAULT_SPARK_MEMORY_THRESHOLDS =
-      SeverityThresholds(low = MemoryFormatUtils.stringToBytes("10G"), MemoryFormatUtils.stringToBytes("15G"),
+      SeverityThresholds(low = MemoryFormatUtils.stringToBytes("10G"), moderate = MemoryFormatUtils.stringToBytes("15G"),
         severe = MemoryFormatUtils.stringToBytes("20G"), critical = MemoryFormatUtils.stringToBytes("25G"), ascending = true)
     val DEFAULT_SPARK_CORES_THRESHOLDS =
-      SeverityThresholds(low = 4, moderate = 6, severe = 8, critical = 10, ascending = true)
+      SeverityThresholds(low = 5, moderate = 7, severe = 9, critical = 11, ascending = true)
 
     val severityDriverMemory = DEFAULT_SPARK_MEMORY_THRESHOLDS.severityOf(driverMemoryBytes.getOrElse(0).asInstanceOf[Number].longValue)
     val severityDriverCores = DEFAULT_SPARK_CORES_THRESHOLDS.severityOf(driverCores.getOrElse(0).asInstanceOf[Number].intValue)

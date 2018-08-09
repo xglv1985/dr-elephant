@@ -59,7 +59,7 @@ class ExecutorGcHeuristic(private val heuristicConfigurationData: HeuristicConfi
     }
     //severityTimeD corresponds to the descending severity calculation
     if (evaluator.severityTimeD.getValue > Severity.LOW.getValue) {
-      resultDetails = resultDetails :+ new HeuristicResultDetails("Gc ratio low", "The job is spending too less time in GC. Please check if you have asked for more executor memory than required.")
+      resultDetails = resultDetails :+ new HeuristicResultDetails("Gc ratio low", "The job is spending too little time in GC. Please check if you have asked for more executor memory than required.")
     }
 
     val result = new HeuristicResult(
@@ -76,6 +76,7 @@ class ExecutorGcHeuristic(private val heuristicConfigurationData: HeuristicConfi
 object ExecutorGcHeuristic {
   val SPARK_EXECUTOR_MEMORY = "spark.executor.memory"
   val SPARK_EXECUTOR_CORES = "spark.executor.cores"
+  val EXECUTOR_RUNTIME_THRESHOLD_IN_MINUTES = 5
 
   /** The ascending severity thresholds for the ratio of JVM GC Time and executor Run Time (checking whether ratio is above normal)
     * These thresholds are experimental and are likely to change */
@@ -107,7 +108,12 @@ object ExecutorGcHeuristic {
 
     var ratio: Double = jvmTime.toDouble / executorRunTimeTotal.toDouble
 
-    lazy val severityTimeA: Severity = executorGcHeuristic.gcSeverityAThresholds.severityOf(ratio)
+    //If the total Executor Runtime is less then 5 minutes then we won't consider for the severity due to GC
+    lazy val severityTimeA: Severity = if (executorRunTimeTotal >= (EXECUTOR_RUNTIME_THRESHOLD_IN_MINUTES * Statistics.MINUTE_IN_MS))
+        executorGcHeuristic.gcSeverityAThresholds.severityOf(ratio)
+    else
+        Severity.NONE
+
     lazy val severityTimeD: Severity = executorGcHeuristic.gcSeverityDThresholds.severityOf(ratio)
 
     /**
@@ -145,4 +151,3 @@ object ExecutorGcHeuristic {
     }
   }
 }
-
