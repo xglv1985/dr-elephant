@@ -1,3 +1,19 @@
+/*
+ * Copyright 2016 LinkedIn Corp.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
 package com.linkedin.drelephant.tuning;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -9,6 +25,7 @@ import java.util.Map;
 import static common.DBTestUtil.*;
 import static common.TestConstants.*;
 
+import java.util.concurrent.TimeUnit;
 import models.TuningAlgorithm;
 import org.slf4j.LoggerFactory;
 import play.Application;
@@ -22,7 +39,8 @@ import static play.test.Helpers.*;
 
 import org.junit.Before;
 import org.junit.Test;
-
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class TuningManagerTest {
   private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(TuningManagerTest.class);
@@ -47,49 +65,51 @@ public class TuningManagerTest {
     fakeApp = fakeApplication(dbConn, gs);
     Configuration configuration = ElephantContext.instance().getAutoTuningConf();
     Boolean autoTuningEnabled = configuration.getBoolean(DrElephant.AUTO_TUNING_ENABLED, false);
-   // org.junit.Assume.assumeTrue(autoTuningEnabled);
+    // org.junit.Assume.assumeTrue(autoTuningEnabled);
   }
 
   @Test
   public void testIPSOManager() {
     running(testServer(TEST_SERVER_PORT, fakeApp), new IPSOManagerTestRunner());
-
   }
 
   @Test
-  public void testFlowTestRunner(){
+  public void testFlowTestRunner() {
     running(testServer(TEST_SERVER_PORT, fakeApp), new FlowTestRunner());
   }
 
-
   @Test
-  public void testBaselineManagerTestRunner(){
+  public void testBaselineManagerTestRunner() {
     running(testServer(TEST_SERVER_PORT, fakeApp), new BaselineManagerTestRunner());
   }
 
   @Test
-  public void testJobStatusManagerTestRunner(){
+  public void testJobStatusManagerTestRunner() {
     running(testServer(TEST_SERVER_PORT, fakeApp), new JobStatusManagerTestRunner());
   }
 
-
   @Test
-  public void testFitnessManagerTestRunner(){
+  public void testFitnessManagerTestRunner() {
     running(testServer(TEST_SERVER_PORT, fakeApp), new FitnessManagerTestRunner());
   }
 
   @Test
-  public void testParamGenerterTestRunner(){
+  public void testParamGenerterTestRunner() {
     running(testServer(TEST_SERVER_PORT, fakeApp), new ParameterGenerateManagerTestRunner());
   }
 
   @Test
-  public void testAlgoBasedOnVersion(){
-    assertTrue("Alorithm Based on Version Test", controllers.Application.getAlgoBasedOnVersion(1).equals(
-        TuningAlgorithm.OptimizationAlgo.PSO_IPSO.name()));
-    assertTrue("Alorithm Based on Version Test", controllers.Application.getAlgoBasedOnVersion(2).equals(
-        TuningAlgorithm.OptimizationAlgo.HBT.name()));
-    assertTrue("Alorithm Based on Version Test", controllers.Application.getAlgoBasedOnVersion(3).equals(
-        TuningAlgorithm.OptimizationAlgo.HBT.name()));
+  public void testAlgoBasedOnVersion() {
+    assertTrue("Alorithm Based on Version Test",
+        controllers.Application.getAlgoBasedOnVersion(1).equals(TuningAlgorithm.OptimizationAlgo.PSO_IPSO.name()));
+    assertTrue("Alorithm Based on Version Test",
+        controllers.Application.getAlgoBasedOnVersion(2).equals(TuningAlgorithm.OptimizationAlgo.HBT.name()));
+    assertTrue("Alorithm Based on Version Test",
+        controllers.Application.getAlgoBasedOnVersion(3).equals(TuningAlgorithm.OptimizationAlgo.HBT.name()));
+  }
+
+  @Test
+  public void testAutoTunerApiHelper() throws InterruptedException {
+    running(testServer(TEST_SERVER_PORT, fakeApp), new AutoTunerApiTestRunner());
   }
 }
