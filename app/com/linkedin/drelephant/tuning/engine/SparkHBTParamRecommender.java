@@ -1,3 +1,18 @@
+/*
+ * Copyright 2019 LinkedIn Corp.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package com.linkedin.drelephant.tuning.engine;
 
 import java.util.HashMap;
@@ -28,9 +43,11 @@ public class SparkHBTParamRecommender {
   public static final int MAX_EXECUTOR_CORE = 3;
   public static final long MAX_EXECUTOR_MEMORY = 8 * FileUtils.ONE_GB;
   public static final long MIN_EXECUTOR_MEMORY = 900 * FileUtils.ONE_MB;
+
   public static final long MIN_DRIVER_MEMORY = 900 * FileUtils.ONE_MB;
 
   public static final int CLUSTER_DEFAULT_EXECUTOR_CORE = 1;
+  public static final int CLUSTER_DEFAULT_DYNAMIC_ALLOCATION_MAX_EXECUTOR = 900;
   public static final long RESERVED_MEMORY = 300 * FileUtils.ONE_MB;
 
   private static final long EXECUTOR_MEMORY_BUFFER_PER_CORE = 0;
@@ -49,9 +66,16 @@ public class SparkHBTParamRecommender {
   private int lastRunExecutorCore;
   private long lastRunExecutorMemoryOverhead;
   private long lastRunDriverMemoryOverhead;
+  private Integer lastRunExecutorInstances;
+  private Integer lastRunDynamicAllocationMaxExecutors;
+  private Integer lastRunDynamicAllocationMinExecutors;
+  private boolean lastRunDynamicAllocationEnabled;
+
   private Float gcRunTimeRatio;
   private Long suggestedExecutorMemory;
   private Integer suggestedCore;
+  private Integer suggestedExecutorInstances;
+
   private Double suggestedMemoryFactor;
   private Long suggestedDriverMemory;
 
@@ -81,6 +105,24 @@ public class SparkHBTParamRecommender {
     } catch (NumberFormatException e) {
       // Do Nothing
     }
+
+    lastRunDynamicAllocationMaxExecutors =
+        getStringToIntegerParameter(appHeuristicsResultDetailsMap, ConfigurationHeuristic.class.getCanonicalName()
+            + "_" + ConfigurationHeuristic.SPARK_DYNAMIC_ALLOCATION_MAX_EXECUTORS(),
+            CLUSTER_DEFAULT_DYNAMIC_ALLOCATION_MAX_EXECUTOR);
+
+    lastRunDynamicAllocationMinExecutors =
+        getStringToIntegerParameter(appHeuristicsResultDetailsMap, ConfigurationHeuristic.class.getCanonicalName()
+            + "_" + ConfigurationHeuristic.SPARK_DYNAMIC_ALLOCATION_MIN_EXECUTORS(), null);
+
+    lastRunExecutorInstances =
+        getStringToIntegerParameter(appHeuristicsResultDetailsMap, ConfigurationHeuristic.class.getCanonicalName()
+            + "_" + ConfigurationHeuristic.SPARK_EXECUTOR_INSTANCES_KEY(), null);
+
+    lastRunDynamicAllocationEnabled =
+        Boolean.parseBoolean(appHeuristicsResultDetailsMap.get(ConfigurationHeuristic.class.getCanonicalName() + "_"
+            + ConfigurationHeuristic.SPARK_DYNAMIC_ALLOCATION_ENABLED()));
+
     gcRunTimeRatio =
         Float.parseFloat(appHeuristicsResultDetailsMap.get(ExecutorGcHeuristic.class.getCanonicalName() + "_"
             + ExecutorGcHeuristic.GC_RUN_TIME_RATIO()));
@@ -103,95 +145,28 @@ public class SparkHBTParamRecommender {
     logger.info("lastRunExecutorCore: " + lastRunExecutorCore);
     logger.info("driverMaxPeakJVMUsedMemory: " + driverMaxPeakJVMUsedMemory);
     logger.info("suggestedSparkDriverMemory: " + suggestedSparkDriverMemory);
-
+    logger.info("lastRunDriverMemoryOverhead: " + lastRunDriverMemoryOverhead);
+    logger.info("lastRunDynamicAllocationMaxExecutors: " + lastRunDynamicAllocationMaxExecutors);
+    logger.info("lastRunDynamicAllocationMinExecutors: " + lastRunDynamicAllocationMinExecutors);
+    logger.info("lastRunExecutorInstances: " + lastRunExecutorInstances);
+    logger.info("lastRunDynamicAllocationEnabled: " + lastRunDynamicAllocationEnabled);
   }
 
-  public long getLastRunExecutorMemoryOverhead() {
-    return lastRunExecutorMemoryOverhead;
+  private Long getStringToLongParameter(Map<String, String> appHeuristicsResultDetailsMap, String key, Long defaultValue) {
+    Long parameterValue = defaultValue;
+    if (appHeuristicsResultDetailsMap.containsKey(key)) {
+      parameterValue = Long.parseLong(appHeuristicsResultDetailsMap.get(key));
+    }
+    return parameterValue;
   }
 
-  public void setLastRunExecutorMemoryOverhead(long lastRunExecutorMemoryOverhead) {
-    this.lastRunExecutorMemoryOverhead = lastRunExecutorMemoryOverhead;
-  }
-
-  public Long getSuggestedExecutorMemory() {
-    return suggestedExecutorMemory;
-  }
-
-  public void setSuggestedExecutorMemory(Long suggestedExecutorMemory) {
-    this.suggestedExecutorMemory = suggestedExecutorMemory;
-  }
-
-  public Integer getSuggestedCore() {
-    return suggestedCore;
-  }
-
-  public void setSuggestedCore(Integer suggestedCore) {
-    this.suggestedCore = suggestedCore;
-  }
-
-  public Double getSuggestedMemoryFactor() {
-    return suggestedMemoryFactor;
-  }
-
-  public void setSuggestedMemoryFactor(Double suggestedMemoryFactor) {
-    this.suggestedMemoryFactor = suggestedMemoryFactor;
-  }
-
-  public Long getSuggestedDriverMemory() {
-    return suggestedDriverMemory;
-  }
-
-  public void setSuggestedDriverMemory(Long suggestedDriverMemory) {
-    this.suggestedDriverMemory = suggestedDriverMemory;
-  }
-
-  public long getMaxPeakUnifiedMemory() {
-    return maxPeakUnifiedMemory;
-  }
-
-  public void setMaxPeakUnifiedMemory(long maxPeakUnifiedMemory) {
-    this.maxPeakUnifiedMemory = maxPeakUnifiedMemory;
-  }
-
-  public long getMaxPeakJVMUsedMemory() {
-    return maxPeakJVMUsedMemory;
-  }
-
-  public void setMaxPeakJVMUsedMemory(long maxPeakJVMUsedMemory) {
-    this.maxPeakJVMUsedMemory = maxPeakJVMUsedMemory;
-  }
-
-  public long getLastRunExecutorMemory() {
-    return lastRunExecutorMemory;
-  }
-
-  public void setLastRunExecutorMemory(long lastRunExecutorMemory) {
-    this.lastRunExecutorMemory = lastRunExecutorMemory;
-  }
-
-  public int getLastRunExecutorCore() {
-    return lastRunExecutorCore;
-  }
-
-  public void setLastRunExecutorCore(int lastRunExecutorCore) {
-    this.lastRunExecutorCore = lastRunExecutorCore;
-  }
-
-  public long getDriverMaxPeakJVMUsedMemory() {
-    return driverMaxPeakJVMUsedMemory;
-  }
-
-  public void setDriverMaxPeakJVMUsedMemory(long driverMaxPeakJVMUsedMemory) {
-    this.driverMaxPeakJVMUsedMemory = driverMaxPeakJVMUsedMemory;
-  }
-
-  public long getSuggestedSparkDriverMemory() {
-    return suggestedSparkDriverMemory;
-  }
-
-  public void setSuggestedSparkDriverMemory(long suggestedSparkDriverMemory) {
-    this.suggestedSparkDriverMemory = suggestedSparkDriverMemory;
+  private Integer getStringToIntegerParameter(Map<String, String> appHeuristicsResultDetailsMap, String key,
+      Integer defaultValue) {
+    Integer parameterValue = defaultValue;
+    if (appHeuristicsResultDetailsMap.containsKey(key)) {
+      parameterValue = Integer.parseInt(appHeuristicsResultDetailsMap.get(key));
+    }
+    return parameterValue;
   }
 
   /**
@@ -206,6 +181,7 @@ public class SparkHBTParamRecommender {
       suggestExecutorMemoryCore();
       suggestMemoryFactor();
       suggestDriverMemory();
+      suggestExecutorInstances();
       suggestedParameters.put(SparkConfigurationConstants.SPARK_EXECUTOR_MEMORY_KEY, (double) suggestedExecutorMemory
           / FileUtils.ONE_MB);
       suggestedParameters.put(SparkConfigurationConstants.SPARK_EXECUTOR_CORES_KEY, suggestedCore.doubleValue());
@@ -215,11 +191,18 @@ public class SparkHBTParamRecommender {
       suggestedParameters.put(SparkConfigurationConstants.SPARK_MEMORY_FRACTION_KEY, suggestedMemoryFactor);
       suggestedParameters.put(SparkConfigurationConstants.SPARK_DRIVER_MEMORY_KEY, (double) suggestedDriverMemory
           / FileUtils.ONE_MB);
+      if (suggestedExecutorInstances != null) {
+        suggestedParameters.put(SparkConfigurationConstants.SPARK_EXECUTOR_INSTANCES_KEY,
+            (double) suggestedExecutorInstances);
+      }
+
       logger.info("Following are the suggestions for spark parameters for app id : " + appResult.flowExecId);
       logger.info("suggestedExecutorMemory " + suggestedExecutorMemory);
       logger.info("suggestedCore " + suggestedCore);
       logger.info("suggestedMemoryFactor " + suggestedMemoryFactor);
       logger.info("suggestedDriverMemory " + suggestedDriverMemory);
+      logger.info("suggestedExecutorInstances: " + suggestedExecutorInstances);
+
     } catch (Exception e) {
       logger.error("Error in generating parameters ", e);
     }
@@ -358,6 +341,31 @@ public class SparkHBTParamRecommender {
       return GC_MEMORY_DECREASE;
     } else {
       return 0;
+    }
+  }
+
+  private void suggestExecutorInstances() {
+    if (suggestedCore != lastRunExecutorCore) {
+      suggestExecutorInstancesBasedOnCore();
+    } else {
+      suggestedExecutorInstances = lastRunExecutorInstances;
+    }
+    if (suggestedExecutorInstances != null) {
+      if (suggestedExecutorInstances > CLUSTER_DEFAULT_DYNAMIC_ALLOCATION_MAX_EXECUTOR) {
+        suggestedExecutorInstances = CLUSTER_DEFAULT_DYNAMIC_ALLOCATION_MAX_EXECUTOR;
+      }
+      //job fails if max executors is less than executor instances
+      if (lastRunDynamicAllocationMaxExecutors != null
+          && suggestedExecutorInstances > lastRunDynamicAllocationMaxExecutors) {
+        suggestedExecutorInstances = lastRunDynamicAllocationMaxExecutors;
+      }
+    }
+  }
+
+  private void suggestExecutorInstancesBasedOnCore() {
+    if (lastRunExecutorInstances != null) {
+      suggestedExecutorInstances =
+          (int) Math.ceil(lastRunExecutorInstances.doubleValue() * lastRunExecutorCore / suggestedCore);
     }
   }
 }

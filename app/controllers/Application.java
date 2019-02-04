@@ -1041,6 +1041,9 @@ public class Application extends Controller {
       } else if (param.getKey().equals(SparkConfigurationConstants.SPARK_EXECUTOR_CORES_KEY)) {
         outputParamFormatted.put(SparkConfigurationConstants.SPARK_EXECUTOR_CORES_KEY,
             String.valueOf(param.getValue().intValue()));
+      }else if (param.getKey().equals(SparkConfigurationConstants.SPARK_EXECUTOR_INSTANCES_KEY)) {
+        outputParamFormatted.put(SparkConfigurationConstants.SPARK_EXECUTOR_INSTANCES_KEY,
+            String.valueOf(param.getValue().intValue()));
       } else if (param.getKey().equals(SparkConfigurationConstants.SPARK_EXECUTOR_MEMORY_OVERHEAD)) {
         outputParamFormatted.put(SparkConfigurationConstants.SPARK_EXECUTOR_MEMORY_OVERHEAD, param.getValue()
             .intValue() + "m");
@@ -1061,7 +1064,8 @@ public class Application extends Controller {
     AutoTuningAPIHelper autoTuningAPIHelper = new AutoTuningAPIHelper();
     Map<String, Double> outputParams = autoTuningAPIHelper.getCurrentRunParameters(tuningInput);
     if (outputParams != null) {
-      logger.info("Output params " + outputParams);
+      JsonNode outputJSON=formatGetCurrentRunParametersOutput(outputParams, tuningInput);
+      logger.info("Output JSON " + outputJSON.toString());
       return ok(formatGetCurrentRunParametersOutput(outputParams, tuningInput));
     } else {
       AutoTuningMetricsController.markGetCurrentRunParametersFailures();
@@ -2000,7 +2004,7 @@ public class Application extends Controller {
       }
     }
     return "NONE";
-  } 
+  }
     private static Map<String, Double> getSparkParamsMap(Long jobSuggestedParamSetId) {
     logger.debug("Fetching params for JobSuggestedParamSet id: " + jobSuggestedParamSetId);
     List<JobSuggestedParamValue> paramValues = JobSuggestedParamValue.find.select("*")
