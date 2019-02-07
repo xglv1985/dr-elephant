@@ -155,7 +155,13 @@ public class SparkHBTParamRecommender {
   private Long getStringToLongParameter(Map<String, String> appHeuristicsResultDetailsMap, String key, Long defaultValue) {
     Long parameterValue = defaultValue;
     if (appHeuristicsResultDetailsMap.containsKey(key)) {
-      parameterValue = Long.parseLong(appHeuristicsResultDetailsMap.get(key));
+      try {
+        parameterValue = Long.parseLong(appHeuristicsResultDetailsMap.get(key));
+      } catch (NumberFormatException e) {
+        if (logger.isDebugEnabled()) {
+          logger.debug("Number format exception for value " + appHeuristicsResultDetailsMap.get(key), e);
+        }
+      }
     }
     return parameterValue;
   }
@@ -164,7 +170,13 @@ public class SparkHBTParamRecommender {
       Integer defaultValue) {
     Integer parameterValue = defaultValue;
     if (appHeuristicsResultDetailsMap.containsKey(key)) {
-      parameterValue = Integer.parseInt(appHeuristicsResultDetailsMap.get(key));
+      try {
+        parameterValue = Integer.parseInt(appHeuristicsResultDetailsMap.get(key));
+      } catch (NumberFormatException e) {
+        if (logger.isDebugEnabled()) {
+          logger.debug("Number format exception for value " + appHeuristicsResultDetailsMap.get(key), e);
+        }
+      }
     }
     return parameterValue;
   }
