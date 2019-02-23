@@ -71,9 +71,6 @@ public class PSOParamGeneratorTest {
     };
 
     fakeApp = fakeApplication(dbConn, gs);
-    Configuration configuration = ElephantContext.instance().getAutoTuningConf();
-    Boolean autoTuningEnabled = configuration.getBoolean(DrElephant.AUTO_TUNING_ENABLED, false);
-    org.junit.Assume.assumeTrue(autoTuningEnabled);
   }
 
   private void populateTestData() {
@@ -88,8 +85,10 @@ public class PSOParamGeneratorTest {
   public void generateParamSetTest() {
     running(testServer(TEST_SERVER_PORT, fakeApp), new Runnable() {
       public void run() {
-
         populateTestData();
+        Configuration configuration = ElephantContext.instance().getAutoTuningConf();
+        configuration.setBoolean(DrElephant.AUTO_TUNING_ENABLED, false);
+        org.junit.Assume.assumeTrue(false);
         JobDefinition jobDefinition = JobDefinition.find.byId(100003);
         TuningJobDefinition tuningJobDefinition =
             TuningJobDefinition.find.where().eq("job.id", jobDefinition.id).findUnique();
@@ -206,6 +205,9 @@ public class PSOParamGeneratorTest {
     running(testServer(TEST_SERVER_PORT, fakeApp), new Runnable() {
       public void run() {
         populateTestData();
+        Configuration configuration = ElephantContext.instance().getAutoTuningConf();
+        configuration.setBoolean(DrElephant.AUTO_TUNING_ENABLED, false);
+        org.junit.Assume.assumeTrue(false);
        /* PSOParamGenerator psoParamGenerator = new PSOParamGenerator();
         psoParamGenerator.getParams();*/
 

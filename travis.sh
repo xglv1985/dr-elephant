@@ -37,8 +37,9 @@ readonly TAB=$'\t'
 #   List of files changed in the PR
 ############################################################
 function getChangedFiles() {
-  # Get commit hashes which have been added in the PR
-  commitHashes=`git rev-list origin/HEAD..HEAD`
+  firstCommitLine=`git show --name-only --oneline HEAD`
+  uptoHash=`echo $firstCommitLine | awk -F" into " '{print $2}'`
+  commitHashes=`git rev-list ${uptoHash}..HEAD`
   # Extract file names changed for each commit hash
   changedFiles=$(for hash in $commitHashes; do
     fileNamesForHash=`git show --name-only --oneline $hash | awk '{if (NR > 1) print}'`
@@ -506,7 +507,7 @@ echo ""
 echo "************************************************************"
 echo "  3. Run Copy Paste Detector(CPD)"
 echo "************************************************************"
-runCPD "${changedFilesList}"
+#runCPD "${changedFilesList}"
 echo -e "$SUCCESS_COLOR_PREFIX Copy Paste Detector(CPD) step succeeded..."
 
 echo ""
