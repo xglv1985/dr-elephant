@@ -16,13 +16,12 @@
 
 package controllers.api.v1;
 
-import com.avaje.ebean.Query;
-import com.avaje.ebean.Junction;
-import com.avaje.ebean.ExpressionList;
-import com.avaje.ebean.SqlRow;
-import com.avaje.ebean.SqlQuery;
 import com.avaje.ebean.Ebean;
-
+import com.avaje.ebean.ExpressionList;
+import com.avaje.ebean.Junction;
+import com.avaje.ebean.Query;
+import com.avaje.ebean.SqlQuery;
+import com.avaje.ebean.SqlRow;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -37,21 +36,21 @@ import com.linkedin.drelephant.exceptions.HadoopException;
 import com.linkedin.drelephant.security.HadoopSecurity;
 import com.linkedin.drelephant.util.InfoExtractor;
 import com.linkedin.drelephant.util.Utils;
+import controllers.Application;
 import controllers.ControllerUtil;
 import controllers.IdUrlPair;
-
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Arrays;
-
 import javax.naming.AuthenticationException;
 import models.AppHeuristicResult;
 import models.AppHeuristicResultDetails;
@@ -62,7 +61,6 @@ import play.data.DynamicForm;
 import play.data.Form;
 import play.mvc.Controller;
 import play.mvc.Result;
-import controllers.Application;
 
 
 /**
@@ -91,6 +89,14 @@ public class Web extends Controller {
   private static int _numJobsModerate = 0;
   private static int _numJobsLow = 0;
   private static int _numJobsNone = 0;
+
+  private static final String AZKABAN_TO_CLUSTER_MAP_KEY = "azkaban_to_cluster_map";
+  private static Map<String, String> azkabanKeyToClusterNameMap = new HashMap();
+
+  private enum CLUSTER_MAP {
+    KEY,
+    VALUE
+  }
 
   /**
    * Returns the json object for the dashboard summaries of jobs analzyed in last day.
@@ -1052,6 +1058,7 @@ public class Web extends Controller {
     data.addProperty(JsonKeys.FLOW_DEF_ID, flowDefinitionId);
     data.addProperty(JsonKeys.QUEUE, queueName);
     data.addProperty(JsonKeys.SCHEDULER, scheduler);
+    data.addProperty(JsonKeys.CLUSTER, getClusterName(jobid));
     data.add(JsonKeys.TASKS_SUMMARIES, taskSummaryArray);
     data.add(JsonKeys.TASKS_SEVERITY, taskSeverity);
 
@@ -2007,5 +2014,23 @@ public class Web extends Controller {
       // return 0
     }
     return unixTime;
+  }
+
+  /**
+   * Parse the JobId to extract the cluster name
+   *
+   * @param jobId JobId
+   * @return the cluster key if the jobId belongs to configured clusters else None
+   */
+  private static String getClusterName(String jobId) {
+    String cluster;
+    try {
+      URL schedulerUrl = new URL(jobId);
+      cluster = schedulerUrl.getHost();
+    } catch (MalformedURLException ex) {
+      logger.error(String.format("Exception while parsing jobDefId %s as URL", jobId), ex);
+      cluster = "None";
+    }
+    return cluster;
   }
 }

@@ -16,12 +16,28 @@
 
 import Ember from 'ember';
 
-export default Ember.Component.extend({
-  showTuneinRecommendations: false,
-  actions: {
-    showTuneinDetails() {
-      this.toggleProperty('showTuneinRecommendations'),
-      this.sendAction('action', this.get('param'));
-    }
+export default Ember.Service.extend({
+  currentUser: null,
+  isLoggedIn: Ember.computed.bool('currentUser'),
+  store: Ember.inject.service(),
+  login(username, password, schedulerUrl, cluster){
+    return Ember.$.ajax({
+      url: "/rest/login",
+      type: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        username: username,
+        password: password,
+        schedulerUrl: schedulerUrl,
+        cluster: cluster
+      })
+    })
+  },
+  logout(){
+    this.set("currentUser", null)
+    Cookies.remove('userId')
+  },
+  setLoggedInUser(username) {
+    this.set("currentUser", username);
   }
-});
+})

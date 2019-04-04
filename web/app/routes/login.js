@@ -16,12 +16,20 @@
 
 import Ember from 'ember';
 
-export default Ember.Component.extend({
-  showTuneinRecommendations: false,
+export default Ember.Route.extend({
+  beforeModel (transition) {
+    //abort transition if already logged in
+    if (Cookies.get('elephant.session.id')) {
+      transition.abort();
+    }
+  },
+  setupController: function(controller, model) {
+    controller.set('showError', false);
+  },
   actions: {
-    showTuneinDetails() {
-      this.toggleProperty('showTuneinRecommendations'),
-      this.sendAction('action', this.get('param'));
+    willTransition: function(transition) {
+      this.controller.set('username', '');
+      this.controller.set('password', '');
     }
   }
 });
