@@ -16,6 +16,7 @@
 package com.linkedin.drelephant.tuning.hbt;
 
 import com.linkedin.drelephant.tuning.AbstractFitnessManager;
+import com.linkedin.drelephant.tuning.TuningHelper;
 import java.util.List;
 import models.JobExecution;
 import models.JobSuggestedParamSet;
@@ -33,6 +34,7 @@ public class NonAutoTuningFailureHandler  implements FailureHandler  {
   private JobSuggestedParamSet jobSuggestedParamSet;
   private AbstractFitnessManager _abstractFitnessManager;
   private final int PARAMETER_RETRY_THRESHOLD = 2;
+
   @Override
   public void calculateFitness(JobExecution jobExecution, JobSuggestedParamSet jobSuggestedParamSet, AbstractFitnessManager fitnessManager) {
     this.jobExecution = jobExecution;
@@ -42,8 +44,9 @@ public class NonAutoTuningFailureHandler  implements FailureHandler  {
   }
   private void handleFailure(){
     if(_abstractFitnessManager.alreadyFitnessComputed(jobSuggestedParamSet)){
+      logger.info(" Fitness for parameter is already computed "+jobSuggestedParamSet.id);
       _abstractFitnessManager.assignDefaultValuesToJobExecution(jobExecution);
-      this.jobExecution.save();
+      TuningHelper.updateJobExecution(this.jobExecution);
     }
     else {
       logger.info(" Retry is not because of AutoTuning  ");
@@ -60,8 +63,8 @@ public class NonAutoTuningFailureHandler  implements FailureHandler  {
         logger.info(" Since parameter have no fault , no need to apply penalty ");
         _abstractFitnessManager.resetParamSetToCreated(jobSuggestedParamSet, jobExecution);
       }
-      this.jobExecution.update();
-      this.jobSuggestedParamSet.update();
+      TuningHelper.updateJobExecution(this.jobExecution);
+      TuningHelper.updateJobSuggestedParamSet(this.jobSuggestedParamSet,this.jobExecution);
     }
   }
 }

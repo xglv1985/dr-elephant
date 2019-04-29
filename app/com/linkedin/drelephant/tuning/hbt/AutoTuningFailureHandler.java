@@ -22,6 +22,7 @@ import java.util.List;
 import models.JobDefinition;
 import models.JobExecution;
 import models.JobSuggestedParamSet;
+import org.apache.log4j.Logger;
 
 
 /**
@@ -32,7 +33,7 @@ public class AutoTuningFailureHandler implements FailureHandler {
   private JobExecution jobExecution;
   private JobSuggestedParamSet jobSuggestedParamSet;
   private AbstractFitnessManager _abstractFitnessManager;
-
+  private final Logger logger = Logger.getLogger(getClass());
   @Override
   public void calculateFitness(JobExecution jobExecution, JobSuggestedParamSet jobSuggestedParamSet,
       AbstractFitnessManager fitnessManager) {
@@ -45,10 +46,11 @@ public class AutoTuningFailureHandler implements FailureHandler {
   private void handleAutoTuningFailure() {
     _abstractFitnessManager.applyPenalty(jobSuggestedParamSet, jobExecution);
     boolean isCurrentParameterBest = jobSuggestedParamSet.isParamSetBest;
-    jobSuggestedParamSet.isParamSetSuggested = false;
-    jobSuggestedParamSet.update();
-    jobExecution.update();
+    jobSuggestedParamSet.isParamSetBest = false;
+    TuningHelper.updateJobExecution(jobExecution);
+    TuningHelper.updateJobSuggestedParamSet(jobSuggestedParamSet,jobExecution);
     if (isCurrentParameterBest) {
+      logger.info(" Current parameter is the best parameter ");
       JobSuggestedParamSet bestParameter = calculateNewBestParameter(jobSuggestedParamSet.jobDefinition.id);
       bestParameter.isParamSetBest = true;
       bestParameter.save();

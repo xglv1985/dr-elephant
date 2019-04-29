@@ -118,8 +118,10 @@ public abstract class AbstractFitnessManager implements Manager {
   private void handleFitnessCalculation(JobExecution jobExecution, List<AppResult> results,
       TuningJobDefinition tuningJobDefinition, JobSuggestedParamSet jobSuggestedParamSet, boolean isRetried) {
     if (results != null && results.size() > 0) {
+      logger.info(" Since there are valid appresults ,calculating fitness "+jobExecution.id);
       calculateAndUpdateFitness(jobExecution, results, tuningJobDefinition, jobSuggestedParamSet, isRetried);
     } else {
+      logger.info(" No app results found , hence handling empty result scenarios "+jobExecution.id);
       handleEmptyResultScenario(jobExecution, jobSuggestedParamSet);
     }
   }
@@ -152,11 +154,13 @@ public abstract class AbstractFitnessManager implements Manager {
 
       if (alreadyFitnessComputed(jobSuggestedParamSet)) {
         assignDefaultValuesToJobExecution(jobExecution);
+        TuningHelper.updateJobExecution(jobExecution);
       } else {
         resetParamSetToCreated(jobSuggestedParamSet, jobExecution);
-        jobSuggestedParamSet.update();
+        TuningHelper.updateJobExecution(jobExecution);
+        TuningHelper.updateJobSuggestedParamSet(jobSuggestedParamSet,jobExecution);
       }
-      jobExecution.update();
+
     }
   }
 
@@ -186,6 +190,7 @@ public abstract class AbstractFitnessManager implements Manager {
    * @param jobExecution
    */
   public void applyPenalty(JobSuggestedParamSet jobSuggestedParamSet, JobExecution jobExecution) {
+    logger.info(" Penalty is applied on id "+jobSuggestedParamSet.id+" because of execution "+jobExecution.id);
     jobSuggestedParamSet.fitness = 10000D;
     jobSuggestedParamSet.paramSetState = JobSuggestedParamSet.ParamSetStatus.FITNESS_COMPUTED;
     jobSuggestedParamSet.fitnessJobExecution = jobExecution;
@@ -198,6 +203,7 @@ public abstract class AbstractFitnessManager implements Manager {
    */
 
   public void assignDefaultValuesToJobExecution(JobExecution jobExecution) {
+    logger.info(" Assigning default values to job execution "+jobExecution.id);
     jobExecution.resourceUsage = 0D;
     jobExecution.executionTime = 0D;
     jobExecution.inputSizeInBytes = 1D;
@@ -303,7 +309,7 @@ public abstract class AbstractFitnessManager implements Manager {
     boolean calculateFitnessDone = false, databaseUpdateDone = false, updateMetricsDone = false;
     List<TuningJobExecutionParamSet> tuningJobExecutionParamSet = detectJobsForFitnessComputation();
     if (tuningJobExecutionParamSet != null && tuningJobExecutionParamSet.size() >= 1) {
-      logger.info("Calculating  Fitness");
+      logger.info("Calculating  Fitness "+tuningJobExecutionParamSet.size());
       calculateFitnessDone = calculateFitness(tuningJobExecutionParamSet);
     }
     /*
@@ -362,4 +368,6 @@ public abstract class AbstractFitnessManager implements Manager {
     }
     return false;
   }
+
+
 }
