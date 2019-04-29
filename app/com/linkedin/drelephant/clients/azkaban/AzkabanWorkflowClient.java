@@ -389,27 +389,29 @@ public class AzkabanWorkflowClient implements WorkflowClient {
     urlParameters.add(new BasicNameValuePair("session.id", _sessionId));
     urlParameters.add(new BasicNameValuePair("ajax", "fetchexecflow"));
     urlParameters.add(new BasicNameValuePair("execid", _executionId));
-
     try {
       JSONObject jsonObject = fetchJson(urlParameters, _workflowExecutionUrl);
       JSONArray jobs = jsonObject.getJSONArray("nodes");
       Map<String, String> jobMap = new HashMap<String, String>();
-      for (int i = 0; i < jobs.length(); i++) {
-        JSONObject job = jobs.getJSONObject(i);
-        jobMap.put(job.get("id").toString(), job.get("status").toString());
-        if (!job.isNull("nodes")) {
-          JSONArray internalJobs = job.getJSONArray("nodes");
-          for (int j = 0; j < internalJobs.length(); j++) {
-            JSONObject internalJob = internalJobs.getJSONObject(j);
-            jobMap.put(internalJob.get("id").toString(), internalJob.get("status").toString());
-          }
-        }
-      }
+      addJobStatusForFlow(jobMap, jobs);
       return jobMap;
     } catch (JSONException e) {
       logger.error("Error in parsing azkaban output ", e);
     }
     return null;
+  }
+
+  public void addJobStatusForFlow(Map<String, String> jobMap, JSONArray jobs) throws JSONException {
+    if (jobs != null) {
+      for (int i = 0; i < jobs.length(); i++) {
+        JSONObject job = jobs.getJSONObject(i);
+        jobMap.put(job.get("nestedId").toString(), job.get("status").toString());
+        if (!job.isNull("nodes")) {
+          JSONArray internalJobs = job.getJSONArray("nodes");
+          addJobStatusForFlow(jobMap, internalJobs);
+        }
+      }
+    }
   }
 
   /**

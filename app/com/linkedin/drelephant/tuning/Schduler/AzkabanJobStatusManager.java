@@ -2,12 +2,17 @@ package com.linkedin.drelephant.tuning.Schduler;
 
 import com.linkedin.drelephant.clients.azkaban.AzkabanJobStatusUtil;
 import com.linkedin.drelephant.tuning.AbstractJobStatusManager;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import models.JobExecution;
 import models.JobSuggestedParamSet;
 import models.TuningJobExecutionParamSet;
+
 import org.apache.log4j.Logger;
 
 
@@ -15,6 +20,7 @@ public class AzkabanJobStatusManager extends AbstractJobStatusManager {
 
   private final Logger logger = Logger.getLogger(getClass());
   private AzkabanJobStatusUtil _azkabanJobStatusUtil;
+  private static Pattern jobNamePattern=Pattern.compile("job=([^&]*)");
 
 
   public enum AzkabanJobStatus {
@@ -71,12 +77,19 @@ public class AzkabanJobStatusManager extends AbstractJobStatusManager {
   private boolean analyzeJobExecution(JobExecution jobExecution,JobSuggestedParamSet jobSuggestedParamSet){
     try {
       logger.debug(" Getting jobs for Flow "+jobExecution.flowExecution.flowExecId);
+      String jobName="";
+      Matcher m=jobNamePattern.matcher(jobExecution.jobExecId);
+      if(m.find()){
+        jobName = m.group(1);
+        logger.info("Expression matched. Job Name is " + jobName);
+      }else{
+        logger.error("Job expression not matched for job " + jobExecution.jobExecId);
+      }
       Map<String, String> jobStatus = _azkabanJobStatusUtil.getJobsFromFlow(jobExecution.flowExecution.flowExecId);
       if (jobStatus != null) {
         for (Map.Entry<String, String> job : jobStatus.entrySet()) {
-          logger.debug("Job Found:" + job.getKey() + ". Status: " + job.getValue());
-          if (job.getKey().equals(jobExecution.job.jobName)) {
-            logger.debug(" Job Updated " + jobExecution.job.jobName);
+          if (job.getKey().equals(jobName)) {
+            logger.info("Job Found:" + job.getKey() + ". Status: " + job.getValue());
             updateJobExecutionMetrics(job, jobSuggestedParamSet, jobExecution);
           }
         }
