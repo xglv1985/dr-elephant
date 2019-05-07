@@ -1771,7 +1771,10 @@ public class Application extends Controller {
           .findUnique();
       Integer jobDefinitionId = 0;
       if (jobExecution == null) {
-        throw new Exception("No Job Execution entry found for job execution: " + jobId);
+        logger.warn("No Job Execution entry found for job execution: " + jobId);
+        tuneIn.addProperty(JOB_SUGGESTED_PARAM_SET_ID, "null");
+        parent.add(TUNEIN, tuneIn);
+        return ok(new Gson().toJson(parent));
       } else {
         jobDefinitionId = jobExecution.job.id;
       }
