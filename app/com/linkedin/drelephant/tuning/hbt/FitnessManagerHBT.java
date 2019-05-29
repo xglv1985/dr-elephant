@@ -104,22 +104,17 @@ public class FitnessManagerHBT extends AbstractFitnessManager {
       updateTuningJobDefinition(tuningJobDefinition, jobExecution);
     }
 
-    try {
-
-      if (isRetried) {
-        logger.info(" Retried execution " + jobExecution.id + " for parameter " + jobSuggestedParamSet.id);
-        handleRetryScenarios(jobSuggestedParamSet, jobExecution);
-      } else {
-        logger.info(" Non Retried execution " + jobExecution.id + " for parameter " + jobSuggestedParamSet.id);
-        handleNonRetryScenarios(jobSuggestedParamSet, jobExecution);
-      }
-
-      logger.info(
-          " Calculating Fitness for " + jobSuggestedParamSet.id + " " + jobSuggestedParamSet.fitnessJobExecution.id
-              + " " + jobExecution.id);
-    } catch (Exception e) {
-      logger.error("Exception while calculating fitness for " + jobSuggestedParamSet.id + " " + jobExecution.id,e);
+    if (isRetried) {
+      logger.info(" Retried execution " + jobExecution.id + " for parameter " + jobSuggestedParamSet.id);
+      handleRetryScenarios(jobSuggestedParamSet, jobExecution);
+    } else {
+      logger.info(" Non Retried execution " + jobExecution.id + " for parameter " + jobSuggestedParamSet.id);
+      handleNonRetryScenarios(jobSuggestedParamSet, jobExecution);
     }
+
+    logger.info(
+        " Calculating Fitness for " + jobSuggestedParamSet.id + " " + jobSuggestedParamSet.fitnessJobExecution.id
+            + " " + jobExecution.id);
   }
 
   private void handleNonRetryScenarios(JobSuggestedParamSet jobSuggestedParamSet, JobExecution jobExecution) {
