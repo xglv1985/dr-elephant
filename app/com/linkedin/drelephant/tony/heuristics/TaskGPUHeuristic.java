@@ -77,7 +77,7 @@ public class TaskGPUHeuristic implements Heuristic<TonyApplicationData> {
 
       // get number of GPU resource requested, if any
       int numGPUsRequested = conf.getInt(TonyConfigurationKeys.getResourceKey(taskType, Constants.GPUS), 0);
-      if (numGPUsRequested > 0) {
+      if (numGPUsRequested >= 0) {
         details.add(new HeuristicResultDetails("Number of GPUs requested per " + taskType + " tasks",
             Integer.toString(numGPUsRequested)));
       }
@@ -87,7 +87,6 @@ public class TaskGPUHeuristic implements Heuristic<TonyApplicationData> {
         double maxMetric = TonyUtils.getMaxMetricForTaskTypeAndMetricName(taskMap, taskType, maxMetricToApply);
 
         if (maxMetric <= 0 || Double.isNaN(maxMetric)) {
-          details.add(new HeuristicResultDetails(maxMetricToApply + " in any " + taskType + " task", "Unknown"));
           continue;
         }
         details.add(new HeuristicResultDetails(maxMetricToApply + " in any " + taskType + " task",
@@ -99,7 +98,6 @@ public class TaskGPUHeuristic implements Heuristic<TonyApplicationData> {
         double avgMetric = TonyUtils.getAvgMetricForTaskTypeAndMetricName(taskMap, taskType, avgMetricToApply);
 
         if (avgMetric <= 0 || Double.isNaN(avgMetric)) {
-          details.add(new HeuristicResultDetails(avgMetricToApply + " in any " + taskType + " task", "Unknown"));
           continue;
         }
         details.add(new HeuristicResultDetails(avgMetricToApply + " in any " + taskType + " task",
