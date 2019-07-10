@@ -976,7 +976,7 @@ public class Application extends Controller {
        This logic is for backward compatailbity. Ideally we should remove this logic in next release
        because HBT should be the default optimization algorithm for all the jobs.
        */
-      optimizationAlgo = getAlgoBasedOnVersion(jobType);
+      optimizationAlgo = getAlgoBasedOnVersion(jobType, version);
       tuningInput.setFlowDefId(flowDefId);
       tuningInput.setJobDefId(jobDefId);
       tuningInput.setFlowDefUrl(flowDefUrl);
@@ -1011,9 +1011,11 @@ public class Application extends Controller {
     }
   }
 
-  public static String getAlgoBasedOnVersion(String jobType) {
-    if (jobType.equals(JobType.PIG.name())) {
+  public static String getAlgoBasedOnVersion(String jobType, Integer version) {
+    if (jobType.equals(JobType.PIG.name()) && version == 1) {
       return TuningAlgorithm.OptimizationAlgo.PSO_IPSO.name();
+    } else if (jobType.equals(JobType.PIG.name()) && version > 1) {
+      return TuningAlgorithm.OptimizationAlgo.HBT.name();
     } else if (jobType.equals(JobType.SPARK.name())) {
       return TuningAlgorithm.OptimizationAlgo.HBT.name();
     } else {
@@ -1035,15 +1037,17 @@ public class Application extends Controller {
     Map<String, String> outputParamFormatted = new HashMap<String, String>();
 
     //Temporarily removing input split parameters
-    outputParams.remove("pig.maxCombinedSplitSize");
-    outputParams.remove("mapreduce.input.fileinputformat.split.maxsize");
+//    outputParams.remove("pig.maxCombinedSplitSize");
+ //    outputParams.remove("mapreduce.input.fileinputformat.split.maxsize");
 
     for (Map.Entry<String, Double> param : outputParams.entrySet()) {
       if (param.getKey().equals("mapreduce.map.sort.spill.percent")) {
         outputParamFormatted.put(param.getKey(), String.valueOf(param.getValue()));
       } else if (param.getKey().equals("mapreduce.map.java.opts")
           || param.getKey().equals("mapreduce.reduce.java.opts")) {
-        outputParamFormatted.put(param.getKey(), "-Xmx" + Math.round(param.getValue()) + "m");
+        outputParamFormatted.put(param.getKey(),
+            "-XX:ReservedCodeCacheSize=100M -XX:MaxMetaspaceSize=256m -XX:CompressedClassSpaceSize=256m -XX:ParallelGCThreads=5 -Djava.net.preferIPv4Stack=true -Xms512m -Xmx"
+                + Math.round(param.getValue()) + "m");
       } else {
         outputParamFormatted.put(param.getKey(), String.valueOf(Math.round(param.getValue())));
       }
