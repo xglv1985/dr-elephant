@@ -1,18 +1,21 @@
 package com.linkedin.drelephant.tuning;
 
-
+import com.linkedin.drelephant.tuning.engine.MRExecutionEngine;
 import com.linkedin.drelephant.tuning.hbt.MRApplicationData;
 import com.linkedin.drelephant.tuning.hbt.MRJob;
+import com.linkedin.drelephant.tuning.hbt.ParameterGenerateManagerHBT;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import models.AppHeuristicResult;
 import models.AppResult;
+import models.JobDefinition;
+import models.TuningParameter;
 
-
+import static common.DBTestUtil.*;
 import static org.junit.Assert.*;
 import static play.test.Helpers.*;
-import static common.DBTestUtil.*;
-
 
 
 public class ParameterGenerateManagerTestRunner implements Runnable {
@@ -31,11 +34,31 @@ public class ParameterGenerateManagerTestRunner implements Runnable {
   @Override
   public void run() {
     populateTestData();
+    testGenerateParamSet();
     testMemoryAndNumberOfTaskRecommendations();
     testNumberOfReducerTaskAndMapperSpillRecommendations();
     testNoHeuristicFailRecommendations();
     testParseMaxHeapSizeInMB();
     testTimeInMinutes();
+  }
+
+
+  private void testGenerateParamSet() {
+    ParameterGenerateManagerHBT parameterGenerateManagerHBT = new ParameterGenerateManagerHBT(new MRExecutionEngine());
+    List<TuningParameter> tuningParameters = null;
+    JobDefinition job = JobDefinition.find.select("*")
+                        .where()
+                        .eq(JobDefinition.TABLE.id, 100003)
+                        .setMaxRows(1)
+                        .findUnique();
+
+    JobTuningInfo jobTuningInfo = new JobTuningInfo();
+    jobTuningInfo.setTuningJob(job);
+    jobTuningInfo.setParametersToTune(tuningParameters);
+
+    JobTuningInfo jobTuningInfoResult = parameterGenerateManagerHBT.generateParamSet(jobTuningInfo);
+    assertTrue("Resulting Tuner State : " + jobTuningInfoResult.getTunerState(), jobTuningInfoResult.getTunerState().equals(""));
+
   }
 
   private void testMemoryAndNumberOfTaskRecommendations() {
