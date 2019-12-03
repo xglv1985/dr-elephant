@@ -1,6 +1,23 @@
+/*
+ * Copyright 2016 LinkedIn Corp.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
 package com.linkedin.drelephant.tuning;
 
 import com.linkedin.drelephant.util.MemoryFormatUtils;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -115,6 +132,35 @@ public class TuningHelper {
     return autoAppliedExecution;
   }
 
+  public static int getValidSuggestedParamExecutionCountAfterTuneInReEnable( Integer jobDefintionId,
+      List<TuningJobExecutionParamSet> tuningJobExecutionParamSets) {
+    int count = 0;
+    Timestamp tuneInReEnableTimestamp = getTuneInReEnablementTimestamp(jobDefintionId);
+    if (tuneInReEnableTimestamp == null) {
+      logger.info("TuneIn never re-enabled for " + jobDefintionId);
+      return Integer.MAX_VALUE;
+    }
+    for (TuningJobExecutionParamSet tuningJobExecutionParam : tuningJobExecutionParamSets) {
+      if (tuningJobExecutionParam.jobSuggestedParamSet.isParamSetSuggested
+          && !tuningJobExecutionParam.jobSuggestedParamSet.paramSetState.equals(
+          JobSuggestedParamSet.ParamSetStatus.DISCARDED) && tuningJobExecutionParam.
+          createdTs.after(tuneInReEnableTimestamp)) {
+        count++;
+      }
+    }
+    logger.info("#suggested param executions after re-enablement of tuning " + count);
+    return count;
+  }
+
+  public static Timestamp getTuneInReEnablementTimestamp(Integer jobDefinitionId) {
+    TuningJobDefinition tuningJobDefinition = TuningJobDefinition.find.select("*")
+        .where()
+        .eq(TuningJobDefinition.TABLE.job + "." + JobDefinition.TABLE.id,
+            jobDefinitionId)
+        .findUnique();
+    return tuningJobDefinition.tuningReEnableTimestamp;
+  }
+
   public static boolean isNewParamBestParam(JobSuggestedParamSet jobSuggestedParamSet,
       JobSuggestedParamSet currentBestJobSuggestedParamSet) {
     boolean newParamBestParam = false;
@@ -206,5 +252,55 @@ public class TuningHelper {
       logger.error(" Error while parsing data in time ");
     }
     return timeInMinutes;
+  }
+
+  public static JobSuggestedParamSet getLatestSuggestedJobParamSet(
+      long jobDefinitionId) {
+    return JobSuggestedParamSet.find.select("*")
+        .where()
+        .eq(JobSuggestedParamSet.TABLE.jobDefinition + "." + JobDefinition.TABLE.id,
+            jobDefinitionId)
+        .eq(JobSuggestedParamSet.TABLE.isParamSetSuggested, true)
+        .eq(JobSuggestedParamSet.TABLE.paramSetState, JobSuggestedParamSet.ParamSetStatus.FITNESS_COMPUTED)
+        .order()
+        .desc(JobSuggestedParamSet.TABLE.createdTs)
+        .setMaxRows(1)
+        .findUnique();
+  }
+
+  public static List<TuningJobExecutionParamSet> getLastNExecutionParamSets(int jobDefinitionId,
+      int executionCount) {
+    return TuningJobExecutionParamSet.find.select("*")
+        .fetch(TuningJobExecutionParamSet.TABLE.jobExecution, "*")
+        .fetch(TuningJobExecutionParamSet.TABLE.jobSuggestedParamSet, "*")
+        .where()
+        .eq(TuningJobExecutionParamSet.TABLE.jobSuggestedParamSet + '.' + JobSuggestedParamSet.TABLE
+            .jobDefinition + '.' + JobDefinition.TABLE.id, jobDefinitionId)
+        .order()
+        .desc(TuningJobExecutionParamSet.TABLE.createdTs)
+        .setMaxRows(executionCount)
+        .findList();
+  }
+
+  public static JobSuggestedParamSet getDefaultParamSet(int jobDefinitionId) {
+    return JobSuggestedParamSet.find.select("*")
+        .where()
+        .eq(JobSuggestedParamSet.TABLE.jobDefinition + "." + JobDefinition.TABLE.id,
+            jobDefinitionId)
+        .eq(JobSuggestedParamSet.TABLE.isParamSetDefault, true)
+        .ne(JobSuggestedParamSet.TABLE.paramSetState, JobSuggestedParamSet.ParamSetStatus
+            .DISCARDED)
+        .findUnique();
+  }
+
+  public static JobSuggestedParamSet getBestParamSet(int jobDefinitionId) {
+    return JobSuggestedParamSet.find.select("*")
+        .where()
+        .eq(JobSuggestedParamSet.TABLE.jobDefinition + "." + JobDefinition.TABLE.id,
+            jobDefinitionId)
+        .eq(JobSuggestedParamSet.TABLE.isParamSetBest, true)
+        .ne(JobSuggestedParamSet.TABLE.paramSetState, JobSuggestedParamSet.ParamSetStatus
+            .DISCARDED)
+        .findUnique();
   }
 }

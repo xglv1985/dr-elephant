@@ -59,6 +59,8 @@ public class TuningJobDefinition extends Model {
     public static final String createdTs = "createdTs";
     public static final String updatedTs = "updatedTs";
     public static final String showRecommendationCount = "showRecommendationCount";
+    public static final String tuningReEnableTimestamp = "tuningReEnableTimestamp";
+    public static final String tuningReEnablementCount = "tuningReEnablementCount";
 
   }
 
@@ -118,9 +120,14 @@ public class TuningJobDefinition extends Model {
   @UpdatedTimestamp
   public Timestamp updatedTs;
 
-
   @Column(nullable = true)
   public String tuningDisabledReason;
+
+  @Column
+  public Timestamp tuningReEnableTimestamp;
+
+  @Column
+  public Integer tuningReEnablementCount;
 
   @Override
   public void save() {
