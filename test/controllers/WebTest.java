@@ -147,7 +147,20 @@ public class WebTest {
       Assert.assertEquals(applicationJsonObject.get(JsonKeys.NAME).getAsString(), "application_id_1");
       JsonArray taskExceptionDetail = applicationJsonObject.getAsJsonArray(JsonKeys.TASKS);
       Assert.assertEquals(taskExceptionDetail.size(), 0);
-      Assert.assertEquals(applicationJsonObject.get(JsonKeys.EXCEPTION_SUMMARY).getAsString(), "stack_trace_3");
+      JsonObject exceptionSummaryElementJsonObject = applicationJsonObject.get(JsonKeys.EXCEPTION_SUMMARY)
+          .getAsJsonArray()
+          .get(0)
+          .getAsJsonObject();
+      Assert.assertEquals(exceptionSummaryElementJsonObject
+          .get("exceptionName")
+          .getAsString(), "Caused by: java.lang.ClassNotFoundException");
+      Assert.assertEquals(exceptionSummaryElementJsonObject
+          .get("exceptionStackTrace")
+          .getAsString(), "ABCD");
+      Assert.assertEquals(exceptionSummaryElementJsonObject
+          .get("weightOfException")
+          .getAsString(), "5");
+
     }
   }
 }

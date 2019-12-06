@@ -19,6 +19,7 @@ package com.linkedin.drelephant.exceptions;
 import com.linkedin.drelephant.analysis.AnalyticJob;
 import com.linkedin.drelephant.exceptions.util.ExceptionInfo;
 import java.util.List;
+import java.util.Map;
 
 import static com.linkedin.drelephant.exceptions.util.Constant.*;
 
@@ -53,4 +54,13 @@ public interface ExceptionFingerprinting {
    * return false if the job is not auto tuning enabled.
    */
   boolean saveData(String jobExecutionID) throws Exception;
+
+  /**
+   *
+   * @return Return the source information of Logs
+   * For e.g in Spark ,key would be driver and value would be
+   * driver log URL . and key can be executor and value would be rest api
+   * to get failed stage logs
+   */
+  Map<String, String> getExceptionLogSourceInformation();
 }

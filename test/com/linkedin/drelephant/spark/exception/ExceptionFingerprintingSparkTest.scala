@@ -16,6 +16,7 @@
 
 package com.linkedin.drelephant.spark.exception
 
+import java.io.{BufferedReader, File, FileReader, StringReader}
 import java.text.SimpleDateFormat
 
 import com.linkedin.drelephant.spark.fetchers.statusapiv1.StageStatus
@@ -36,8 +37,6 @@ import play.test.Helpers._
 import com.linkedin.drelephant.exceptions.util.Constant._
 import com.linkedin.drelephant.exceptions.util.{Constant, ExceptionInfo}
 import com.linkedin.drelephant.exceptions.util.ExceptionUtils._
-
-import Array._
 
 class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
   private val sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss")
@@ -66,12 +65,17 @@ class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
 
       val analyticJob = getAnalyticalJob(false,
         "http://hostname:8042/node/containerlogs/container_e24_1547063162911_185371_01_000001/dssadmin",
-        "ltx1-hcl5294.grid.linkedin.com:8042")
+        "hostname:8042")
       val exceptionInfoList = exceptionFingerprinting.processRawData(analyticJob)
       val classificationValue = exceptionFingerprinting.classifyException(exceptionInfoList)
+      // Test to check for log source Information
+      val logSourceInformation = exceptionFingerprinting.getExceptionLogSourceInformation
       className should be("ExceptionFingerprintingSpark")
       exceptionInfoList.size() should be(1)
       classificationValue.name() should be("USER_ENABLED")
+      logSourceInformation.containsKey("DRIVER") should be(true)
+      logSourceInformation.get("DRIVER") should be("http://0.0.0.0:19888/jobhistory/nmlogs/hostname:0" +
+        "/container_e24_1547063162911_185371_01_000001/container_e24_1547063162911_185371_01_000001/dssadmin/stderr/?start=0")
     }
     it("check for auto tuning  enabled exception") {
       val stage = createStage(1, StageStatus.FAILED, Some("java.lang.OutOfMemoryError: Exception thrown in " +
@@ -86,7 +90,7 @@ class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
 
       val analyticJob = getAnalyticalJob(false,
         "http://hostname:8042/node/containerlogs/container_e24_1547063162911_185371_01_000001/dssadmin",
-        "ltx1-hcl5294.grid.linkedin.com:8042")
+        "hostname:8042")
       val exceptionInfoList = exceptionFingerprinting.processRawData(analyticJob)
       val classificationValue = exceptionFingerprinting.classifyException(exceptionInfoList)
       className should be("ExceptionFingerprintingSpark")
@@ -94,10 +98,10 @@ class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
       classificationValue.name() should be("AUTOTUNING_ENABLED")
     }
     it("check for build URL for query driver logs ") {
-      val sparkExceptionFingerPrinting = new ExceptionFingerprintingSpark(null)
+      val sparkExceptionFingerPrinting = new ExceptionFingerprintingSpark()
       val analyticJob = getAnalyticalJob(false,
         "http://hostname:8042/node/containerlogs/container_e24_1547063162911_185371_01_000001/dssadmin",
-        "ltx1-hcl5294.grid.linkedin.com:8042")
+        "hostname:8042")
       val exceptionInfoList = sparkExceptionFingerPrinting.processRawData(analyticJob)
       val queryURL = sparkExceptionFingerPrinting.buildURLtoQuery()
       queryURL should be("http://0.0.0.0:19888/jobhistory/nmlogs/hostname:0/container_e24_1547063162911_185371_01_000001" +
@@ -106,7 +110,7 @@ class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
     it("check for eligibilty of applying exception fingerprinting ") {
       val analyticJob = getAnalyticalJob(true,
         "http://hostname:8042/node/containerlogs/container_e24_1547063162911_185371_01_000001/dssadmin",
-        "ltx1-hcl5294.grid.linkedin.com:8042")
+        "hostname:8042")
       analyticJob.getAppType().getName should be("SPARK")
       val isApplicationApplied = analyticJob.applyExceptionFingerprinting(null, null)
       isApplicationApplied should be(false)
@@ -124,9 +128,10 @@ class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
       val data = createSparkApplicationData(stages, executors, Some(properties))
       val analyticJob = getAnalyticalJob(false,
         "http://hostname:8042/node/containerlogs/container_e24_1547063162911_185371_01_000001/dssadmin",
-        "ltx1-hcl5294.grid.linkedin.com:8042")
+        "hostname:8042")
       running(testServer(TEST_SERVER_PORT, fakeApp), new ExceptionFingerprintingRunnerTest(data, analyticJob))
     }
+
     it("check for exception regex ") {
       val dataContainsException = Array("java.io.FileNotFoundException: File /jobs/emailopt/",
         "java.lang.OutOfMemoryError: Java heap space",
@@ -143,26 +148,26 @@ class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
       val exceptionOutOfMemory = new ExceptionInfo(1,
         "java.lang.OutOfMemoryError: Exception thrown in awaitResult:",
         "  at org.apache.spark.util.ThreadUtils$.awaitResult(ThreadUtils.scala:194)",
-        ExceptionInfo.ExceptionSource.EXECUTOR)
+        ExceptionInfo.ExceptionSource.EXECUTOR, 1, "")
 
       val exceptionVirtualMemory = new ExceptionInfo(1,
         "[pid=116086,containerID=container_1535113754342_0003_01_000002] " +
           "is running beyond virtual memory limits. Current usage: 106.2 MB of 1 GB " +
           "physical memory used; 5.8 GB of 2.1 GB virtual memory used. Killing container",
         "",
-        ExceptionInfo.ExceptionSource.EXECUTOR)
+        ExceptionInfo.ExceptionSource.EXECUTOR, 1, "")
 
       val exceptionExitCode = new ExceptionInfo(1,
         "Container killed by the ApplicationMaster. " +
           "Container killed on request. Exit code is " +
           "103 Container exited with a non-zero exit code 103",
         "",
-        ExceptionInfo.ExceptionSource.EXECUTOR)
+        ExceptionInfo.ExceptionSource.EXECUTOR, 1, "")
 
       val exceptionNonAutoTuningFault = new ExceptionInfo(1,
         "java.io.FileNotFoundException: File webhdfs://nn1.grid.example.com:50070/logs/spark/application_1.lz4 does not exist.",
         "at com.linkedin.drelephant.util.SparkUtils$class.com$linkedin$drelephant$util$SparkUtils$$openEventLog(SparkUtils.scala:313)",
-        ExceptionInfo.ExceptionSource.EXECUTOR)
+        ExceptionInfo.ExceptionSource.EXECUTOR, 1, "")
 
       val exceptionList = new java.util.ArrayList[ExceptionInfo]()
       val rule = new RegexRule()
@@ -187,8 +192,69 @@ class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
       exceptionList.clear()
     }
 
+    it("check for removal of black listed exceptions") {
+      val stage1 = createStage(1, StageStatus.FAILED, Some("java.lang.OutOfMemoryError: Exception thrown in awaitResult:"), "details")
+      val stage2 = createStage(2, StageStatus.FAILED, Some("-XX:OnOutOfMemoryError='kill %p'"), "details")
+      val stages = Seq(stage1, stage2)
+      val executors = getExecutorSummary()
+      val properties = getProperties()
+      val data = createSparkApplicationData(stages, executors, Some(properties))
+      val exceptionFingerprinting = ExceptionFingerprintingFactory.getExceptionFingerprinting(ExecutionEngineType.SPARK, data)
+
+      val analyticJob = getAnalyticalJob(false,
+        "http://hostname:8042/node/containerlogs/container_e24_1547063162911_185371_01_000001/dssadmin",
+        "hostname:8042")
+      val blackListedPatterns = Array("ABCD")
+      ConfigurationBuilder.BLACK_LISTED_EXCEPTION_PATTERN.setValue(blackListedPatterns)
+      val exceptionInfoList = exceptionFingerprinting.processRawData(analyticJob)
+      exceptionInfoList.size() should be(2)
+      val blackListedPatternsEnhanced = blackListedPatterns :+ "-XX:OnOutOfMemoryError='kill %p'"
+      ConfigurationBuilder.BLACK_LISTED_EXCEPTION_PATTERN.setValue(blackListedPatternsEnhanced)
+      exceptionFingerprinting.processRawData(analyticJob).size() should be(1)
+    }
+
+    it("check for driver log processing for Exception fingerprinting spark") {
+      val exceptionFingerPrintingSpark = new ExceptionFingerprintingSpark()
+      var driverLogs = " Showing 50000 bytes of 77821039 total. Click \n            <a href=\"/jobhistory/logs/" +
+        "ltx1-hcl11887.grid.linkedin.com:8041/container_e99_1574361432315_150107_01_000005" +
+        "/container_e99_1574361432315_150107_01_000005/metrics/stderr/?start=0\">" +
+        "here</a>\n             for the full log.\n          <pre>re\n\n)\n19/11/22 05:21:40 INFO scheduler." +
+        "TaskSetManager: Task 0.0 in stage 7.3 (TID 12717) failed, but the task will not be re-executed " +
+        "(either because the task failed with a shuffle data fetch failure, so the previous " +
+        "stage needs to be re-run, or because a different copy of the task has already succeeded).\n19/11/22 05:21:40 INFO " +
+        "cluster.YarnClusterScheduler: Removed TaskSet 7.3, whose tasks have all completed, from pool \n19/11/22 05:21:40 " +
+        "INFO scheduler.DAGScheduler: Marking ResultStage 7 (count at LearningSessionVideo.scala:75) " +
+        "as failed due to a fetch failure from ShuffleMapStage 6 " +
+        "(count at LearningSessionVideo.scala:75)\n19/11/22 05:21:40 INFO scheduler.DAGScheduler: " +
+        "ResultStage 7 (count at LearningSessionVideo.scala:75) failed in 125.587 s due to " +
+        "org.apache.spark.shuffle.FetchFailedException: java.util.concurrent.TimeoutException: Timeout " +
+        "waiting for task.\n\tat org.apache.spark.storage.ShuffleBlockFetcherIterator.throwFetchFailedException" +
+        "(ShuffleBlockFetcherIterator.scala:519)\n\tat org.apache.spark.storage.ShuffleBlockFetcherIterator.next" +
+        "(ShuffleBlockFetcherIterator.scala:450)\n\tat org.apache.spark.storage.ShuffleBlockFetcherIterator.next" +
+        "(ShuffleBlockFetcherIterator.scala:61)\n\tat scala.collection.Iterator$$anon$12.nextCur" +
+        "(Iterator.scala:434)\n\tat scala.collection.Iterator$$anon$12.hasNext(Iterator.scala:440)\n\tat " +
+        "scala.collection.Iterator$$anon$11.hasNext(Iterator.scala:408)"
+      val exceptionInfo = new util.ArrayList[ExceptionInfo]();
+      var reader = new BufferedReader(new StringReader(driverLogs))
+      exceptionFingerPrintingSpark.convertInputStreamToExceptionList(reader, exceptionInfo, "http://localhost/metrics/stderr/?start=77771039")
+      exceptionInfo.size() should be(1)
+      val exception = exceptionInfo.get(0)
+      exception.getExceptionName should be("19/11/22 05:21:40 INFO scheduler.DAGScheduler: ResultStage 7 (count at LearningSessionVideo.scala:75) failed " +
+        "in 125.587 s due to org.apache.spark.shuffle.FetchFailedException: java.util.concurrent.TimeoutException: Timeout waiting for task.")
+      exception.getExceptionTrackingURL should be("http://localhost/metrics/stderr/?start=631")
+      exception.getWeightOfException should be(1)
+      reader.close()
+      driverLogs = "exception"
+      reader = new BufferedReader(new StringReader(driverLogs))
+      exceptionInfo.clear()
+      exceptionFingerPrintingSpark.convertInputStreamToExceptionList(reader, exceptionInfo, "http://localhost/metrics/stderr/?start=77771039")
+      exceptionInfo.size() should be(0)
+
+    }
+
+
     it("check for start index based on log length") {
-      val exceptionFingerPrintingSpark = new ExceptionFingerprintingSpark(null)
+      val exceptionFingerPrintingSpark = new ExceptionFingerprintingSpark()
 
       /**
         * If value is less than first threshold .
@@ -221,7 +287,7 @@ class ExceptionFingerprintingSparkTest extends FunSpec with Matchers {
       ConfigurationBuilder.THRESHOLD_PERCENTAGE_OF_LOG_TO_READ.getValue should be(0.95F)
       ConfigurationBuilder.THRESHOLD_LOG_LINE_LENGTH.getValue should be(1000)
       ConfigurationBuilder.JHS_TIME_OUT.getValue should be(150000)
-      ConfigurationBuilder.NUMBER_OF_STACKTRACE_LINE.getValue should be(3)
+      ConfigurationBuilder.NUMBER_OF_STACKTRACE_LINE.getValue should be(5)
       val configuration = new Configuration()
 
       /**

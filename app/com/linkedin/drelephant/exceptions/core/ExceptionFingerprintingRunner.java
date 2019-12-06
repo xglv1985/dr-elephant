@@ -21,15 +21,25 @@ import com.linkedin.drelephant.analysis.HadoopApplicationData;
 import com.linkedin.drelephant.exceptions.ExceptionFingerprinting;
 import com.linkedin.drelephant.exceptions.HadoopException;
 import com.linkedin.drelephant.exceptions.util.ExceptionInfo;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.persistence.PersistenceException;
 import models.AppResult;
 import models.JobsExceptionFingerPrinting;
 import org.apache.log4j.Logger;
+import org.codehaus.jackson.JsonGenerationException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import static com.linkedin.drelephant.exceptions.util.Constant.*;
+import static com.linkedin.drelephant.exceptions.util.ExceptionUtils.*;
+import static com.linkedin.drelephant.exceptions.util.ExceptionUtils.ConfigurationBuilder.*;
 
 
 /**
@@ -62,7 +72,8 @@ public class ExceptionFingerprintingRunner implements Runnable {
       ExceptionFingerprinting exceptionFingerprinting =
           ExceptionFingerprintingFactory.getExceptionFingerprinting(executionType, data);
       List<ExceptionInfo> exceptionInfos = exceptionFingerprinting.processRawData(_analyticJob);
-      saveDriverExceptionLogForExceptionFingerPrinting(exceptionInfos);
+      saveDriverExceptionLogForExceptionFingerPrinting(exceptionInfos,
+          exceptionFingerprinting.getExceptionLogSourceInformation());
       LogClass logClass = exceptionFingerprinting.classifyException(exceptionInfos);
       boolean isAutoTuningFault = false;
       if (logClass != null && logClass.equals(LogClass.AUTOTUNING_ENABLED)) {
@@ -80,12 +91,18 @@ public class ExceptionFingerprintingRunner implements Runnable {
         + (endTime - startTime) * 1.0 / (1000000000.0) + "s");
   }
 
-  private void saveDriverExceptionLogForExceptionFingerPrinting(List<ExceptionInfo> exceptionInfoList) {
+  /**
+   *
+   * @param exceptionInfoList : List contains all the exceptions
+   * @param logSourceInformation : Map containing sources of exception
+   */
+  private void saveDriverExceptionLogForExceptionFingerPrinting(List<ExceptionInfo> exceptionInfoList,
+      Map<String, String> logSourceInformation) {
     if (exceptionInfoList != null) {
       final String NOT_APPLICABLE = "NA";
-      Optional<ExceptionInfo> driverExceptionInfo = exceptionInfoList.parallelStream()
-          .filter(ex -> ex.getExceptionSource().equals(ExceptionInfo.ExceptionSource.DRIVER))
-          .findFirst();
+
+      String exceptionsTrace = parseExceptions(exceptionInfoList, true);
+
       JobsExceptionFingerPrinting jobsExceptionFingerPrinting = new JobsExceptionFingerPrinting();
       jobsExceptionFingerPrinting.appId = NOT_APPLICABLE;
       jobsExceptionFingerPrinting.taskId = NOT_APPLICABLE;
@@ -99,20 +116,108 @@ public class ExceptionFingerprintingRunner implements Runnable {
       sparkJobException.appId = _appResult.id;
       sparkJobException.taskId = NOT_APPLICABLE;
       sparkJobException.jobName = getJobName(_appResult.jobExecUrl);
-      if (driverExceptionInfo.isPresent()) {
-        sparkJobException.exceptionLog = driverExceptionInfo.get().getExcptionStackTrace();
+      sparkJobException.logSourceInformation = processLogSourceInformation(logSourceInformation);
+      //sparkJobException.exceptionLog = exceptionsTrace;
+      if (exceptionsTrace.trim().length() > 2) {
+        sparkJobException.exceptionLog = exceptionsTrace;
       } else {
         sparkJobException.exceptionLog = "Couldn't gather driver logs for the job";
       }
       sparkJobException.exceptionType = ExceptionInfo.ExceptionSource.DRIVER.toString();
-      sparkJobException.save();
+      saveSparkJobException(sparkJobException, exceptionInfoList);
       jobsExceptionFingerPrinting.save();
     }
   }
 
+  private void saveSparkJobException(JobsExceptionFingerPrinting sparkJobException,
+      List<ExceptionInfo> exceptionInfoList) {
+    try {
+      if (sparkJobException.exceptionLog.length() < TOTAL_LENGTH_OF_LOG_SAVED_IN_DB.getValue()) {
+        logger.info("Saving complete logs into db ");
+        sparkJobException.save();
+      } else {
+        logger.info(
+            "Complete logs cannot be stored in db , hence creating mix of exceptions with half of original length");
+        List<ExceptionInfo> halfExceptionList = createMixofException(exceptionInfoList, exceptionInfoList.size() / 2);
+        sparkJobException.exceptionLog = parseExceptions(halfExceptionList, false);
+        if (sparkJobException.exceptionLog.length() < TOTAL_LENGTH_OF_LOG_SAVED_IN_DB.getValue()) {
+          sparkJobException.save();
+        } else {
+          logger.info("Since half of the mix logs are not stored , only storing two exceptions ");
+          List<ExceptionInfo> firstException = createMixofException(exceptionInfoList, 2);
+          sparkJobException.exceptionLog = parseExceptions(firstException, false);
+          sparkJobException.save();
+        }
+      }
+      debugLog("Final exception saved in db " + sparkJobException.exceptionLog);
+    }
+    catch(PersistenceException pe){
+      logger.error(" Exception stack trace cannot be saved for "+_appResult.id,pe);
+      }
+  }
+
+  /**
+   * Since we are not able to store all the exceptions in database , this method
+   * will create the mix of exceptions (including Executor and Driver)
+   * @param exceptionInfoList : List of exceptions .
+   * @param size : Maximum size of the list
+   * @return : Mix of exceptions
+   */
+  private List<ExceptionInfo> createMixofException(List<ExceptionInfo> exceptionInfoList, int size) {
+    List<ExceptionInfo> mixOfException = new ArrayList<>();
+    List<ExceptionInfo> executorExceptions = new ArrayList<>();
+    for (ExceptionInfo exceptionInfo : exceptionInfoList) {
+      if (exceptionInfo.getExceptionSource().name().equals(ExceptionInfo.ExceptionSource.EXECUTOR.name())) {
+        executorExceptions.add(exceptionInfo);
+      }
+    }
+    logger.info(" Size of executor exceptions " + executorExceptions.size());
+    for (int index = 0; index <= size / 2; index++) {
+      mixOfException.add(exceptionInfoList.get(index));
+    }
+    logger.info(" Size of mix exceptions " + mixOfException.size());
+    int max = Math.min(executorExceptions.size(), size - (size / 2));
+    for (int index = 0; index < max; index++) {
+      mixOfException.add(executorExceptions.get(index));
+    }
+    logger.info(" Size of mix exceptions " + mixOfException.size());
+    return mixOfException;
+  }
+
+  /**
+   *  User provided configuration is being used to set the number of
+   *  exceptions in DB
+   * @param exceptionInfoList : Exception List
+   * @param isFirstTime : Is the list parsed first time
+   * @return JSON Array as String containing exceptions
+   */
+  private String parseExceptions(List<ExceptionInfo> exceptionInfoList, boolean isFirstTime) {
+    ObjectMapper Obj = new ObjectMapper();
+    if (isFirstTime) {
+      Collections.sort(exceptionInfoList);
+    }
+    String exceptionInJson = null;
+    try {
+      exceptionInJson = Obj.writeValueAsString(exceptionInfoList.subList(0,
+          Math.min(exceptionInfoList.size(), NUMBER_OF_EXCEPTION_TO_PUT_IN_DB.getValue())));
+      logger.info(" Final Size of the exception List , which will be stored in db " + exceptionInJson);
+    } catch (IOException e) {
+      logger.error(" Exception while searlizing stack tract list to JSON ", e);
+    }
+    return exceptionInJson;
+  }
+
+  private String processLogSourceInformation(Map<String, String> logSourceInformation) {
+    StringBuilder logSource = new StringBuilder();
+    for (Map.Entry<String, String> entry : logSourceInformation.entrySet()) {
+      logSource.append("SOURCE " + entry.getKey() + "\tURL " + entry.getValue()).append("\n");
+    }
+    return logSource.toString();
+  }
+
   private String getJobName(String jobExecUrl) {
     Matcher matcher = jobNamePattern.matcher(jobExecUrl);
-    if (matcher.find()){
+    if (matcher.find()) {
       return matcher.group(1);
     }
     return matcher.group(1);

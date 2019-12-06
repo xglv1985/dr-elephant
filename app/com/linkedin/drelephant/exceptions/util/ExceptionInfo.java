@@ -15,56 +15,88 @@
  */
 
 package com.linkedin.drelephant.exceptions.util;
-
+import lombok.Data;
 /**
  * Class to store exception information
  */
-public class ExceptionInfo {
+@Data
+public class ExceptionInfo implements Comparable<ExceptionInfo> {
 
   private int exceptionID;
+  private Integer weightOfException;
   private String exceptionName;
   private String exceptionStackTrace;
   private ExceptionSource exceptionSource;
 
+  private String exceptionTrackingURL;
+
+  /**
+   * Added for serialize and deserialize into JSON
+   */
+  public ExceptionInfo(){
+
+  }
+
+  @Override
+  public int compareTo(ExceptionInfo o) {
+    return o.weightOfException.compareTo(this.weightOfException);
+  }
+
   public enum ExceptionSource {DRIVER, EXECUTOR, SCHEDULER}
 
   public ExceptionInfo(int exceptionID, String exceptionName, String exceptionStackTrace,
-      ExceptionSource exceptionSource) {
+      ExceptionSource exceptionSource, int weightOfException, String exceptionTrackingURL) {
     this.exceptionID = exceptionID;
     this.exceptionName = exceptionName;
     this.exceptionStackTrace = exceptionStackTrace;
     this.exceptionSource = exceptionSource;
+    this.weightOfException = weightOfException;
+    this.exceptionTrackingURL = exceptionTrackingURL;
   }
 
   //TODO: Currently this has not been used . But the idea to have ID of two excpetion same
   //if they are simillar , so that we can remove simillar exception from the exception fingerprinting
   //system
+  // Getter and setters are used by GSON/Jackson for serialize and deserialize into JSON
 
-  public int getExceptionID() {
-    return exceptionID;
-  }
-
-  public void setExceptionID(int exceptionID) {
-    this.exceptionID = exceptionID;
-  }
-
-  public String getExceptionName() {
-    return exceptionName;
-  }
-
-  public String getExcptionStackTrace() {
-    return exceptionStackTrace;
-  }
-
-  public ExceptionSource getExceptionSource() {
-    return this.exceptionSource;
-  }
 
   //TODO : Use exception source to prioritize  the exception
 
+
+  /**
+   * todo: Remove duplicate exceptions
+   * @param
+   * @return
+   */
   @Override
-  public String toString() {
-    return "ExceptionInfo{" + "exceptionID=" + exceptionID + ", exceptionName='" + exceptionName + '\''
-        + ", exceptionStackTrace='" + exceptionStackTrace + '\'' + ", exceptionSource='" + exceptionSource.name() + '\'' + '}';
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    ExceptionInfo that = (ExceptionInfo) o;
+
+    if (!exceptionName.equals(that.exceptionName)) {
+      return false;
+    }
+    return exceptionStackTrace.equals(that.exceptionStackTrace);
+  }
+
+  public String getExceptionTrackingURL() {
+    return exceptionTrackingURL;
+  }
+
+  public void setExceptionTrackingURL(String exceptionTrackingURL) {
+    this.exceptionTrackingURL = exceptionTrackingURL;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = exceptionName.hashCode();
+    result = 31 * result + exceptionStackTrace.hashCode();
+    return result;
   }
 }

@@ -26,6 +26,10 @@ import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.JsonElement;
 import com.linkedin.drelephant.ElephantContext;
 import com.linkedin.drelephant.analysis.ApplicationType;
 import com.linkedin.drelephant.analysis.Heuristic;
@@ -33,6 +37,7 @@ import com.linkedin.drelephant.analysis.JobType;
 import com.linkedin.drelephant.analysis.Severity;
 import com.linkedin.drelephant.exceptions.ExceptionFinder;
 import com.linkedin.drelephant.exceptions.HadoopException;
+import com.linkedin.drelephant.exceptions.util.ExceptionInfo;
 import com.linkedin.drelephant.util.InfoExtractor;
 import com.linkedin.drelephant.util.Utils;
 import controllers.Application;
@@ -57,6 +62,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import play.data.DynamicForm;
 import play.data.Form;
+import org.codehaus.jackson.map.ObjectMapper;
 import play.mvc.Controller;
 import play.mvc.Result;
 
@@ -1759,6 +1765,7 @@ public class Web extends Controller {
    * @throws IOException
    */
   public static Result restExceptions() throws  IOException {
+    logger.debug(" Rest query is called "+System.nanoTime());
     DynamicForm form = Form.form().bindFromRequest(request());
     String url = form.get("flow-exec-url");
     JsonObject parent = new JsonObject();
@@ -1790,8 +1797,9 @@ public class Web extends Controller {
         parent.add("workflow-exceptions", new JsonArray());
         return status(500,"Unexpected error occured");
       }
-
+      logger.debug(" Calling for  exceptions detailing from DB "+System.nanoTime());
       JsonObject jobExceptionDetailsJSON = getExceptionDetailsJSON(url);
+      logger.debug(" Fetched detailed about  exceptions detailing from DB "+System.nanoTime());
       if (jobExceptionDetailsJSON != null) {
         return ok(new Gson().toJson(jobExceptionDetailsJSON));
       }
@@ -1853,6 +1861,7 @@ public class Web extends Controller {
 
     if (jobsExceptionDetailsList != null) {
       for (JobsExceptionFingerPrinting jobException : jobsExceptionDetailsList) {
+        long startTime = System.nanoTime();
         JsonObject job = new JsonObject();
         job.addProperty(JsonKeys.NAME, jobException.jobName);
         job.addProperty(JsonKeys.TYPE, jobException.exceptionType);
@@ -1878,6 +1887,8 @@ public class Web extends Controller {
         }
         job.addProperty(JsonKeys.STATUS, "failed");
         jobsArray.add(job);
+        long endTime = System.nanoTime();
+        logger.info(" Processing of  "+ jobException.jobName +" took "+ (endTime - startTime) * 1.0 / (1000000000.0) + "s");
       }
       root.add(JsonKeys.WORKFLOW_EXCEPTIONS, jobsArray);
       return root;
@@ -2007,21 +2018,45 @@ public class Web extends Controller {
   }
 
   private static JsonArray getSparkJobExceptionDetails(String flowExecUrl, String jobName) {
-     JobsExceptionFingerPrinting sparkJobsExceptionDetail = JobsExceptionFingerPrinting.find.select("*")
+       List<JobsExceptionFingerPrinting> sparkJobsExceptionDetails = JobsExceptionFingerPrinting.find.select("*")
         .where()
         .eq(JobsExceptionFingerPrinting.TABLE.FLOW_EXEC_URL, flowExecUrl)
         .eq(JobsExceptionFingerPrinting.TABLE.JOB_NAME, jobName)
         .ne(JobsExceptionFingerPrinting.TABLE.APP_ID, NOT_APPLICABLE)
         .eq(JobsExceptionFingerPrinting.TABLE.EXCEPTION_TYPE, "DRIVER")
-        .findUnique();
+        .findList();
 
      JsonArray sparkJobArray = new JsonArray();
-     JsonObject sparkJobException = new JsonObject();
-     sparkJobException.addProperty(JsonKeys.NAME, sparkJobsExceptionDetail.appId);
-     sparkJobException.addProperty(JsonKeys.EXCEPTION_SUMMARY, sparkJobsExceptionDetail.exceptionLog);
-     sparkJobException.add(JsonKeys.TASKS, new JsonArray());
-     sparkJobArray.add(sparkJobException);
+     for(JobsExceptionFingerPrinting jobsExceptionFingerPrinting : sparkJobsExceptionDetails) {
+       JsonObject sparkJobException = new JsonObject();
+       sparkJobException.addProperty(JsonKeys.NAME, jobsExceptionFingerPrinting.appId);
+       sparkJobException.add(JsonKeys.EXCEPTION_SUMMARY, getSparkExceptionDetails(jobsExceptionFingerPrinting.exceptionLog));
+       if (jobsExceptionFingerPrinting.logSourceInformation != null
+           && jobsExceptionFingerPrinting.logSourceInformation.length() > 0) {
+         sparkJobException.addProperty(JsonKeys.EXCEPTION_LOG_SOURCE, jobsExceptionFingerPrinting.logSourceInformation);
+       }
+       sparkJobException.add(JsonKeys.TASKS, new JsonArray());
+       sparkJobArray.add(sparkJobException);
+     }
      return sparkJobArray;
+  }
+
+  private static JsonArray getSparkExceptionDetails(String exceptionLog) {
+    long startTime = System.nanoTime();
+    JsonElement element = null ;
+    try {
+      element = new JsonParser().parse(exceptionLog);
+    } catch (JsonSyntaxException e) {
+      logger.error("Unable to parse exception "+exceptionLog, e);
+    }
+    long endTime = System.nanoTime();
+    logger.info(" Deserialization of Exceptions to JSON Array Started "+ (endTime - startTime) * 1.0 / (1000000000.0) + "s");
+    if (element != null) {
+      return element.getAsJsonArray();
+    } else {
+      return new JsonArray();
+    }
+
   }
 
 
