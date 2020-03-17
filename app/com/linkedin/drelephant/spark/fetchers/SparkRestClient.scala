@@ -87,7 +87,6 @@ class SparkRestClient(sparkConf: SparkConf) {
           Option(getSparkConfigs(attemptTarget))
         }
       } else Future.successful(None: Option[ApplicationConfigImpl])
-      
       val futureStageDatas = Future {
         getStageDatas(attemptTarget)
       }
@@ -210,7 +209,7 @@ class SparkRestClient(sparkConf: SparkConf) {
       get(target, SparkRestObjectMapper.readValue[Seq[JobDataImpl]])
     } catch {
       case NonFatal(e) => {
-        logger.error(s"error reading jobData ${target.getUri}. Exception Message = " + e.getMessage)
+        logger.warn(s"error reading jobData ${target.getUri}. Exception Message = " + e.getMessage)
         logger.debug(e)
         throw e
       }
@@ -223,13 +222,13 @@ class SparkRestClient(sparkConf: SparkConf) {
       get(target, SparkRestObjectMapper.readValue[ApplicationConfigImpl])
     } catch {
       case NonFatal(e) => {
-        logger.error(s"error reading sparkConfigs ${target.getUri}. Exception Message = " + e.getMessage, e)
+        logger.warn(s"error reading sparkConfigs ${target.getUri}. Exception Message = " + e.getMessage, e)
         logger.debug(e)
         throw e
       }
     }
   }
-  
+
   private def getStageDatas(attemptTarget: WebTarget): Seq[StageDataImpl] = {
     val target = attemptTarget.path("stages/withSummaries")
     try {
@@ -249,7 +248,7 @@ class SparkRestClient(sparkConf: SparkConf) {
       get(target, SparkRestObjectMapper.readValue[Seq[ExecutorSummaryImpl]])
     } catch {
       case NonFatal(e) => {
-        logger.error(s"error reading executorSummary ${target.getUri}. Exception Message = " + e.getMessage)
+        logger.warn(s"error reading executorSummary ${target.getUri}. Exception Message = " + e.getMessage)
         logger.debug(e)
         throw e
       }
@@ -263,7 +262,7 @@ class SparkRestClient(sparkConf: SparkConf) {
       get(target, SparkRestObjectMapper.readValue[Seq[StageDataImpl]])
     } catch {
       case NonFatal(e) => {
-        logger.error(s"error reading failedTasks ${target.getUri}. Exception Message = " + e.getMessage)
+        logger.warn(s"error reading failedTasks ${target.getUri}. Exception Message = " + e.getMessage)
         logger.debug(e)
         throw e
       }
