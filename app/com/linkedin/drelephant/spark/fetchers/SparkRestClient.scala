@@ -56,6 +56,9 @@ class SparkRestClient(sparkConf: SparkConf) {
 
   private val client: Client = ClientBuilder.newClient()
 
+  private val THRESHOLD_REMAINING_RETRIES_FOR_TIMEOUT_CHANGE = 3;
+  private val DEFAULT_REMAINING_RETRIES = 20;
+
   private val historyServerUri: URI = sparkConf.getOption(HISTORY_SERVER_ADDRESS_KEY) match {
     case Some(historyServerAddress) =>
       val baseUri: URI =
@@ -76,17 +79,20 @@ class SparkRestClient(sparkConf: SparkConf) {
     .property(ClientProperties.READ_TIMEOUT, READ_TIMEOUT).target(historyServerUri).path(API_V1_MOUNT_PATH)
 
 
-  def fetchData(appId: String, fetchLogs: Boolean = false, fetchFailedTasks: Boolean = true)(
-    implicit ec: ExecutionContext
+  def fetchData(appId: String, fetchLogs: Boolean = false, retriesRemaining: Int = DEFAULT_REMAINING_RETRIES,
+    fetchFailedTasks: Boolean = true)(implicit ec: ExecutionContext
   ): Future[SparkRestDerivedData] = {
     val (applicationInfo, attemptTarget) = getApplicationMetaData(appId)
-    val jobData = getJobDatas(attemptTarget)
+    val REQUEST_TIMEOUT =
+      if (retriesRemaining > THRESHOLD_REMAINING_RETRIES_FOR_TIMEOUT_CHANGE) DEFAULT_TIMEOUT else MAX_PERMITTED_TIMEOUT
+    val jobData = Await.result(Future {getJobDatas(attemptTarget)}, REQUEST_TIMEOUT)
     Future {
       val appConfigurationProperties = if (fetchLogs) {
         Future {
           Option(getSparkConfigs(attemptTarget))
         }
       } else Future.successful(None: Option[ApplicationConfigImpl])
+
       val futureStageDatas = Future {
         getStageDatas(attemptTarget)
       }
@@ -104,13 +110,12 @@ class SparkRestClient(sparkConf: SparkConf) {
       SparkRestDerivedData(
         applicationInfo,
         jobData,
-        Await.result(futureStageDatas, DEFAULT_TIMEOUT),
-        Await.result(futureExecutorSummaries, Duration(5, SECONDS)),
-        Await.result(futureFailedTasks, DEFAULT_TIMEOUT),
+        Await.result(futureStageDatas, REQUEST_TIMEOUT),
+        Await.result(futureExecutorSummaries, REQUEST_TIMEOUT),
+        Await.result(futureFailedTasks, REQUEST_TIMEOUT),
         attemptTarget.getUri.toString,
-        Await.result(appConfigurationProperties, DEFAULT_TIMEOUT)
+        Await.result(appConfigurationProperties, REQUEST_TIMEOUT)
       )
-
     }
   }
 
@@ -275,8 +280,9 @@ object SparkRestClient {
   val API_V1_MOUNT_PATH = "api/v1"
   val IN_PROGRESS = ".inprogress"
   val DEFAULT_TIMEOUT = Duration(5, SECONDS)
-  val CONNECTION_TIMEOUT = 5000
-  val READ_TIMEOUT = 5000
+  val MAX_PERMITTED_TIMEOUT = Duration(10, SECONDS)
+  val CONNECTION_TIMEOUT = 10000
+  val READ_TIMEOUT = 10000
 
   val SparkRestObjectMapper = {
     val dateFormat = {
