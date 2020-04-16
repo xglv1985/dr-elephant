@@ -182,7 +182,8 @@ public class TonYExceptionFingerprinting {
     for (Pattern exactExceptionPattern : exactExceptionRegexList) {
       Matcher exact_exception_pattern_matcher = exactExceptionPattern.matcher(logData);
       while (exact_exception_pattern_matcher.find()) {
-        if (!isExceptionLogDuplicate(exact_exception_pattern_matcher.group(0))) {
+        if (!isExceptionLogSimilar(exact_exception_pattern_matcher.group(0))) {
+          exceptionIdSet.add(exact_exception_pattern_matcher.group(0));
           ExceptionInfo exceptionInfo = new ExceptionInfo();
           exceptionInfo.setExceptionID(exact_exception_pattern_matcher.group(0).hashCode());
           exceptionInfo.setExceptionName(exact_exception_pattern_matcher.group(1));
@@ -213,7 +214,8 @@ public class TonYExceptionFingerprinting {
     for (Pattern exactExceptionPattern : partialExceptionRegexList) {
       Matcher partial_pattern_matcher = exactExceptionPattern.matcher(logData);
       while (partial_pattern_matcher.find()) {
-        if (!isExceptionLogDuplicate(partial_pattern_matcher.group(0))) {
+        if (!(isExceptionLogSimilar(partial_pattern_matcher.group(0)))) {
+          exceptionIdSet.add(partial_pattern_matcher.group(0));
           ExceptionInfo exceptionInfo = new ExceptionInfo();
           exceptionInfo.setExceptionID(partial_pattern_matcher.group(0).hashCode());
           exceptionInfo.setExceptionName(partial_pattern_matcher.group(1));
@@ -314,6 +316,7 @@ public class TonYExceptionFingerprinting {
     ObjectMapper Obj = new ObjectMapper();
     String exceptionInJson = null;
     try {
+      logger.info("Size \n\n" + exceptionInfoList.size());
       exceptionInJson = Obj.writeValueAsString(exceptionInfoList.subList(0,
           Math.min(exceptionInfoList.size(), NUMBER_OF_TONY_EXCEPTION_TO_PUT_IN_DB.getValue())));
     } catch (IOException ex) {
@@ -339,10 +342,10 @@ public class TonYExceptionFingerprinting {
   }
 
   /**
-   * @param exceptionStackTrace HashCode for filterOut exception stackTrace
-   * @return where this exception stackTrace is parsed and saved before
+   * @param exceptionStackTrace HashCode for filterOut Duplicate or Similar exception stackTrace
+   * @return whether this exception stackTrace is parsed and saved before
    */
-  private boolean isExceptionLogDuplicate(String exceptionStackTrace) {
+  private boolean isExceptionLogSimilar(String exceptionStackTrace) {
     if (exceptionIdSet.contains(exceptionStackTrace)) {
       for (String uniqueExceptions : exceptionIdSet) {
         if (uniqueExceptions.equals(exceptionStackTrace)) {
@@ -350,7 +353,12 @@ public class TonYExceptionFingerprinting {
         }
       }
     }
-    exceptionIdSet.add(exceptionStackTrace);
+    for (String uniqueExceptions : exceptionIdSet) {
+      if (getLogSimilarityPercentage(exceptionStackTrace, uniqueExceptions) >
+          MAX_LOG_SIMILARITY_PERCENTAGE_THRESHOLD.getValue()) {
+        return true;
+      }
+    }
     return false;
   }
 }

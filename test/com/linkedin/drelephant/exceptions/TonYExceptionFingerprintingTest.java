@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import models.AppResult;
 import org.apache.commons.io.IOUtils;
 import org.junit.After;
@@ -80,6 +81,7 @@ public class TonYExceptionFingerprintingTest {
   private final String FAKE_RESPONSE_APP_1_STDOUT_PATH = "test/resources/exception/TonY/app_1_stdout_response.html";
   private final String FAKE_RESPONSE_APP_2_STDERR_PATH = "test/resources/exception/TonY/app_2_stderr_response.html";
   private final String FAKE_RESPONSE_APP_2_STDOUT_PATH = "test/resources/exception/TonY/app_2_stdout_response.html";
+  private final String FAKE_RESPONSE_APP_STDERR_PATH = "test/resources/exception/TonY/app_stderr_response.html";
 
   @Before
   public void setup() {
@@ -156,15 +158,18 @@ public class TonYExceptionFingerprintingTest {
         logger.error("URL for test is not formed properly");
       }
       AnalyticJob fakeJob1 =
-          getFakeAnalyticalJob(TEST_APPLICATION_ID_1, TEST_JOB_NAME_1, false, TEST_AM_LOG_CONTAINER_URL_1, "diagnostic 1");
+          getFakeAnalyticalJob(TEST_APPLICATION_ID_1, TEST_JOB_NAME_1, false, TEST_AM_LOG_CONTAINER_URL_1,
+              "diagnostic 1");
       AppResult fakeAppResult1 = getFakeAppResult(TEST_APPLICATION_ID_1, TEST_JOB_EXEC_URL_1, TEST_WORKFLOW_URL_1);
       TonYExceptionFingerprinting tonyEF = new TonYExceptionFingerprinting(fakeJob1, fakeAppResult1);
       tonyEF.doExceptionPrinting();
       List<ExceptionInfo> exceptionInfos = tonyEF.get_exceptionInfoList();
-      assertEquals(5, exceptionInfos.size());
+      assertEquals(3, exceptionInfos.size());
       assertEquals("Job Diagnostics", exceptionInfos.get(0).getExceptionName());
-      assertEquals("Job Diagnostics: \n" + fakeJob1.getJobDiagnostics(), exceptionInfos.get(0).getExceptionStackTrace());
-      assertEquals("Container exited with a non-zero exit code 1. Error file: prelaunch.err.", exceptionInfos.get(1).getExceptionName());
+      assertEquals("Job Diagnostics: \n" + fakeJob1.getJobDiagnostics(), exceptionInfos.get(0)
+          .getExceptionStackTrace());
+      assertEquals("Container exited with a non-zero exit code 1. Error file: prelaunch.err.",
+          exceptionInfos.get(1).getExceptionName());
     });
   }
 
@@ -181,21 +186,22 @@ public class TonYExceptionFingerprintingTest {
         logger.error("URL for test is not formed properly");
       }
       AnalyticJob fakeJob =
-          getFakeAnalyticalJob(TEST_APPLICATION_ID_2, TEST_JOB_NAME_2, false, TEST_AM_LOG_CONTAINER_URL_2, "Exit with status code 1.");
+          getFakeAnalyticalJob(TEST_APPLICATION_ID_2, TEST_JOB_NAME_2, false, TEST_AM_LOG_CONTAINER_URL_2,
+              "Exit with status code 1.");
       AppResult fakeAppResult = getFakeAppResult(TEST_APPLICATION_ID_2, TEST_JOB_EXEC_URL_2, TEST_WORKFLOW_URL_2);
       TonYExceptionFingerprinting tonyEF = new TonYExceptionFingerprinting(fakeJob, fakeAppResult);
       tonyEF.doExceptionPrinting();
       List<ExceptionInfo> exceptionInfos = tonyEF.get_exceptionInfoList();
-      assertEquals(6, exceptionInfos.size());
+      assertEquals(5, exceptionInfos.size());
       assertEquals("Job Diagnostics", exceptionInfos.get(0).getExceptionName());
       assertEquals("Job Diagnostics: \n" + fakeJob.getJobDiagnostics(), exceptionInfos.get(0)
           .getExceptionStackTrace());
       assertEquals("Container exited with a non-zero exit code 1. Error file: prelaunch.err.",
           exceptionInfos.get(1).getExceptionName());
-      assertEquals("ERROR ApplicationMaster:983 - [2020-02-05 02:56:19.427]Container killed by the ApplicationMaster.",
-          exceptionInfos.get(5).getExceptionName());
+      assertEquals("ERROR ApplicationMaster:983 - [2020-02-05 02:56:19.426]Container killed by the ApplicationMaster.",
+          exceptionInfos.get(4).getExceptionName());
       assertEquals(ExceptionUtils.ConfigurationBuilder.NUMBER_OF_STACKTRACE_LINE.getValue() + 1,
-          (exceptionInfos.get(5).getExceptionStackTrace().split("\n")).length);
+          (exceptionInfos.get(4).getExceptionStackTrace().split("\n")).length);
     });
   }
 
@@ -235,6 +241,44 @@ public class TonYExceptionFingerprintingTest {
       } catch (Exception ex) {
         logger.info("Exception while mocking method getAzkabanExceptionInfoResults");
       }
+    });
+  }
+
+  @Test
+  public void testTonyExceptionFingerprintingWhenSimilarLogsArePresent()
+  {
+    running(testServer(TEST_SERVER_PORT, fakeApp), () -> {
+      try {
+        mockResponseForContainerLogs(new URL(TEST_AM_LOG_CONTAINER_URL_1).getPath() + stderrContainerLogParameters,
+            getFakeResponse(FAKE_RESPONSE_APP_STDERR_PATH), OK);
+        mockResponseForContainerLogs(new URL(TEST_AM_LOG_CONTAINER_URL_1).getPath() + stdoutContainerLogParameters,
+            "", OK);
+      } catch (MalformedURLException ex) {
+        logger.error("URL for test case is not formed properly");
+      }
+      AnalyticJob fakeJob =
+          getFakeAnalyticalJob(TEST_APPLICATION_ID_1, TEST_JOB_NAME_1, false, TEST_AM_LOG_CONTAINER_URL_1,
+              "Exit with status code 1.");
+      AppResult fakeAppResult = getFakeAppResult(TEST_APPLICATION_ID_3, TEST_JOB_EXEC_URL_3, TEST_WORKFLOW_URL_3);
+      TonYExceptionFingerprinting tonyEF = new TonYExceptionFingerprinting(fakeJob, fakeAppResult);
+      tonyEF.doExceptionPrinting();
+      List<ExceptionInfo> exceptionInfos = tonyEF.get_exceptionInfoList();
+      assertEquals(6, exceptionInfos.size());
+      assertTrue(exceptionInfos.get(2).getExceptionStackTrace().contains("Container exited with a non-zero exit code 1."
+          + " Error file: prelaunch.err.\n" + "Last 4096 bytes of prelaunch.err :\n" + "Last 4096 bytes of stderr :"));
+      assertTrue(exceptionInfos.get(3).getExceptionStackTrace().contains("ERROR ApplicationMaster:983 - "
+          + "[2020-02-07 06:51:28.868]Container [pid=15762,containerID=container_e42_123456789568_34567_01_000027] is "
+          + "running beyond physical memory limits. Current usage: 32.0 GB of 32 GB physical memory used; 102.9 GB of "
+          + "67.2 GB virtual memory used. Killing container.\n"
+          + "Dump of the process-tree for container_e42_123456789568_34567_01_000027"));
+      /*
+        Log has two similar stackTraces and only difference between them is containerId
+        Log with containerId container_e42_123456789568_34567_01_000008 will be present in result and not with containerId
+        container_e42_123456789568_34567_01_000009
+       */
+      List<ExceptionInfo> similarLogList = exceptionInfos.stream().filter(el -> el.getExceptionStackTrace().contains(
+          "container_e42_123456789568_34567_01_000009")).collect(Collectors.toList());
+      assertEquals(0, similarLogList.size());
     });
   }
 
