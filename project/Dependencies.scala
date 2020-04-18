@@ -14,6 +14,9 @@
 // the License.
 //
 
+import play.Project._
+import sbt._
+
 object Dependencies {
 
   // Dependency Version
