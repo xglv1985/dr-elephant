@@ -36,3 +36,5 @@ addSbtPlugin("com.etsy" % "sbt-checkstyle-plugin" % "3.1.1")
 
 // Scalastyle plugin
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
+
+addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")

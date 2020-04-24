@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -x
 #
 # Copyright 2016 LinkedIn Corp.
 #
@@ -266,8 +266,8 @@ function runStyleChecks() {
 require_programs zip unzip
 
 # Default configurations
-HADOOP_VERSION="2.3.0"
-SPARK_VERSION="1.4.0"
+HADOOP_VERSION="2.9.2"
+SPARK_VERSION="2.3.2"
 
 
 extra_commands=""
