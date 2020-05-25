@@ -67,7 +67,7 @@ class SparkRestClient(sparkConf: SparkConf) {
         } else {
           new URI(s"http://${historyServerAddress}")
         }
-      require(baseUri.getPath == "")
+//      require(baseUri.getPath == "")
       baseUri
     case None =>
       throw new IllegalArgumentException("spark.yarn.historyServer.address not provided; can't use Spark REST API")

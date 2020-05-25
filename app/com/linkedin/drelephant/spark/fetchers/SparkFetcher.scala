@@ -41,25 +41,31 @@ class SparkFetcher(fetcherConfigurationData: FetcherConfigurationData)
   import SparkFetcher._
   import ExecutionContext.Implicits.global
 
-  private val logger: Logger = Logger.getLogger(classOf[SparkFetcher])
+  private var logger: Logger = Logger.getLogger(classOf[SparkFetcher])
 
-  val eventLogUri = Option(fetcherConfigurationData.getParamMap.get(LOG_LOCATION_URI_XML_FIELD))
+  var eventLogUri = Option(fetcherConfigurationData.getParamMap.get(LOG_LOCATION_URI_XML_FIELD))
   logger.info("The event log location of Spark application is set to " + eventLogUri)
 
-  private[fetchers] lazy val hadoopConfiguration: Configuration = new Configuration()
+  private[fetchers] var hadoopConfiguration: Configuration = new Configuration()
 
-  private[fetchers] lazy val sparkUtils: SparkUtils = SparkUtils
+  private[fetchers] var sparkUtils: SparkUtils = SparkUtils
 
-  private[fetchers] lazy val sparkConf: SparkConf = {
+  private[fetchers] var sparkConf: SparkConf = {
     val sparkConf = new SparkConf()
-    sparkUtils.getDefaultPropertiesFile() match {
-      case Some(filename) => sparkConf.setAll(sparkUtils.getPropertiesFromFile(filename))
-      case None => throw new IllegalStateException("can't find Spark conf; please set SPARK_HOME or SPARK_CONF_DIR")
-    }
+    val envMap = Map(
+      "SPARK_HOME" -> "/home/lvxuguang01/.hmpclient/spark-client",
+      "SPARK_CONF_DIR" -> "/home/lvxuguang01/.hmpclient/spark-client/conf"
+    )
+//    sparkUtils.getDefaultPropertiesFile(envMap) match {
+    val filename = "/home/lvxuguang01/.hmpclient/spark-client/conf/spark-defaults.conf"
+    sparkConf.setAll(sparkUtils.getPropertiesFromFile(filename))
+//      case None => throw new IllegalStateException("can't find Spark conf; please set SPARK_HOME or SPARK_CONF_DIR")
+//    }
+    logger.info("sparkConf zzzzzzzzzzzzz:" + sparkConf)
     sparkConf
   }
 
-  private[fetchers] lazy val eventLogSource: EventLogSource = {
+  private[fetchers] var eventLogSource: EventLogSource = {
     val eventLogEnabled = sparkConf.getBoolean(SPARK_EVENT_LOG_ENABLED_KEY, false)
     val useRestForLogs = Option(fetcherConfigurationData.getParamMap.get("use_rest_for_eventlogs"))
       .exists(_.toBoolean)
@@ -68,13 +74,41 @@ class SparkFetcher(fetcherConfigurationData: FetcherConfigurationData)
     } else if (useRestForLogs) EventLogSource.Rest else EventLogSource.WebHdfs
   }
 
-  private[fetchers] lazy val shouldProcessLogsLocally = (eventLogSource == EventLogSource.Rest) &&
+  private[fetchers] var shouldProcessLogsLocally = (eventLogSource == EventLogSource.Rest) &&
     Option(fetcherConfigurationData.getParamMap.get("should_process_logs_locally")).exists(_.toLowerCase == "true")
 
-  private[fetchers] lazy val sparkRestClient: SparkRestClient = new SparkRestClient(sparkConf)
+  private[fetchers] var sparkRestClient: SparkRestClient = new SparkRestClient(sparkConf)
 
-  private[fetchers] lazy val sparkLogClient: SparkLogClient = {
+  private[fetchers] var sparkLogClient: SparkLogClient = {
     new SparkLogClient(hadoopConfiguration, sparkConf, eventLogUri)
+  }
+
+  def init(): Unit = {
+    logger = Logger.getLogger(classOf[SparkFetcher])
+
+    eventLogUri = Option(fetcherConfigurationData.getParamMap.get(LOG_LOCATION_URI_XML_FIELD))
+
+    hadoopConfiguration = new Configuration()
+
+    sparkUtils = SparkUtils
+
+    sparkConf = new SparkConf()
+    val filename = "/home/lvxuguang01/.hmpclient/spark-client/conf/spark-defaults.conf"
+    sparkConf.setAll(sparkUtils.getPropertiesFromFile(filename))
+
+    val eventLogEnabled = sparkConf.getBoolean(SPARK_EVENT_LOG_ENABLED_KEY, false)
+    val useRestForLogs = Option(fetcherConfigurationData.getParamMap.get("use_rest_for_eventlogs"))
+      .exists(_.toBoolean)
+    if (!eventLogEnabled) {
+      eventLogSource = EventLogSource.None
+    } else if (useRestForLogs) eventLogSource = EventLogSource.Rest else eventLogSource = EventLogSource.WebHdfs
+
+    shouldProcessLogsLocally = (eventLogSource == EventLogSource.Rest) &&
+      Option(fetcherConfigurationData.getParamMap.get("should_process_logs_locally")).exists(_.toLowerCase == "true")
+
+    sparkRestClient = new SparkRestClient(sparkConf)
+
+    sparkLogClient = new SparkLogClient(hadoopConfiguration, sparkConf, eventLogUri)
   }
 
   override def fetchData(analyticJob: AnalyticJob): SparkApplicationData = {

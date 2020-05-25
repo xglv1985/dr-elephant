@@ -35,7 +35,12 @@ public class Global extends GlobalSettings {
 
   public void onStart(Application app) {
     Logger.info("Starting Application...");
+    try {
+      // TODO just for test
+      Thread.sleep(30000);
+    } catch (Exception e) {
 
+    }
     fixJavaKerberos();
 
     _drElephantThread = new Thread(DrElephant.getInstance());

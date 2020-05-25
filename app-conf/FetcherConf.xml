@@ -58,7 +58,7 @@
      To work properly, this fetcher should use the same timezone with the job history server.
      If not set, the local timezone will be used.
    -->
-  
+ <!-- 
   <fetcher>
     <applicationtype>mapreduce</applicationtype>
     <classname>com.linkedin.drelephant.mapreduce.fetchers.MapReduceFSFetcherHadoop2</classname>
@@ -68,7 +68,7 @@
       <history_server_time_zone>PST</history_server_time_zone>
     </params>
   </fetcher>
-  
+  -->
 
   <!--
     FSFetcher for Spark. Loads the eventlog from HDFS and replays to get the metrics and application properties
@@ -86,26 +86,30 @@
       <event_log_location_uri>webhdfs://localhost:50070/system/spark-history</event_log_location_uri>
     </params>
   -->
+  <!--
   <fetcher>
     <applicationtype>spark</applicationtype>
     <classname>com.linkedin.drelephant.spark.fetchers.FSFetcher</classname>
   </fetcher>
-
+  -->
   <!--
   This is an experimental fetcher for Spark applications which uses SHS REST API to get application metrics
   and WebHDFS to get application properties from eventlogs. Please note that this fetcher also supports backfill.
   But backfill implementation in this fetcher relies upon SHS REST APIs' which are only available since Spark 2.3 
+  -->
 
    <fetcher>
     <applicationtype>spark</applicationtype>
     <classname>com.linkedin.drelephant.spark.fetchers.SparkFetcher</classname>
   </fetcher>
 
+  <!--
   Param Description (Requires Spark >= 1.5.0):
   *use_rest_for_eventlogs* enables the fetcher to get eventlogs via SHS REST API to derive application properties.
   *should_process_logs_locally* if use_rest_for_eventlogs is true, then enabling this flag will enable fetcher to just
   get eventlogs via SHS REST API and derives application metrics and properties from eventlogs.
   Therefore, fetcher does not use other REST calls, which may have significant memory overhead on SHS.
+  -->
 
   <fetcher>
     <applicationtype>spark</applicationtype>
@@ -115,7 +119,7 @@
       <should_process_logs_locally>true</should_process_logs_locally>
     </params>
   </fetcher>
-  -->
+  
 
   <!--
     Fetcher for TonY jobs. To use this, you must set the TONY_CONF_DIR environment variable to the directory

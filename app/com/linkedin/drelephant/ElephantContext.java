@@ -51,6 +51,8 @@ import org.apache.log4j.Logger;
 import org.w3c.dom.Document;
 import play.api.templates.Html;
 
+import com.linkedin.drelephant.spark.fetchers.SparkFetcher;
+
 
 /**
  * This is a general singleton instance that provides globally accessible resources.
@@ -164,12 +166,20 @@ public class ElephantContext {
 
     _fetchersConfData = new FetcherConfiguration(document.getDocumentElement()).getFetchersConfigurationData();
     for (FetcherConfigurationData data : _fetchersConfData) {
+      Map<String, String> paramMap = data.getParamMap();
+      logger.info(paramMap);
       try {
         Class<?> fetcherClass = Class.forName(data.getClassName());
         Object instance = fetcherClass.getConstructor(FetcherConfigurationData.class).newInstance(data);
         if (!(instance instanceof ElephantFetcher)) {
           throw new IllegalArgumentException("Class " + fetcherClass.getName() + " is not an implementation of "
               + ElephantFetcher.class.getName());
+        }
+
+        if (instance instanceof SparkFetcher) {
+          SparkFetcher sparkFetcher = (SparkFetcher) instance;
+          logger.info(sparkFetcher);
+//          sparkFetcher.init();
         }
 
         ApplicationType type = data.getAppType();

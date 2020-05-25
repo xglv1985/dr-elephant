@@ -35,30 +35,28 @@ object Dependencies {
   lazy val HADOOP_VERSION = "hadoopversion"
   lazy val SPARK_VERSION = "sparkversion"
 
-  var hadoopVersion = "2.9.2"
+  var hadoopVersion = "2.3.0"
   if (System.getProperties.getProperty(HADOOP_VERSION) != null) {
     hadoopVersion = System.getProperties.getProperty(HADOOP_VERSION)
   }
 
-  var sparkVersion = "2.3.2"
+  var sparkVersion = "1.5.0"
   if (System.getProperties.getProperty(SPARK_VERSION) != null) {
     sparkVersion = System.getProperties.getProperty(SPARK_VERSION)
   }
 
   val sparkExclusion = if (sparkVersion >= "1.5.0") {
-    "org.apache.spark" % "spark-core_2.11" % sparkVersion excludeAll(
+    "org.apache.spark" % "spark-core_2.10" % sparkVersion excludeAll(
       ExclusionRule(organization = "com.typesafe.akka"),
       ExclusionRule(organization = "org.apache.avro"),
       ExclusionRule(organization = "org.apache.hadoop"),
-      ExclusionRule(organization = "net.razorvine"),
-      ExclusionRule(organization = "com.fasterxml.jackson.module")
+      ExclusionRule(organization = "net.razorvine")
       )
   } else {
-    "org.apache.spark" % "spark-core_2.11" % sparkVersion excludeAll(
+    "org.apache.spark" % "spark-core_2.10" % sparkVersion excludeAll(
       ExclusionRule(organization = "org.apache.avro"),
       ExclusionRule(organization = "org.apache.hadoop"),
-      ExclusionRule(organization = "net.razorvine"),
-      ExclusionRule(organization = "com.fasterxml.jackson.module")
+      ExclusionRule(organization = "net.razorvine")
       )
   }
 
@@ -80,6 +78,7 @@ object Dependencies {
     "org.apache.hadoop" % "hadoop-common" % hadoopVersion % Test,
     "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "compileonly",
     "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % Test,
+    "org.apache.hadoop" % "hadoop-yarn-api" % hadoopVersion,
     "org.jsoup" % "jsoup" % jsoupVersion,
     "org.apache.oozie" % "oozie-client" % oozieClientVersion excludeAll(
       ExclusionRule(organization = "org.apache.hadoop")
@@ -99,6 +98,8 @@ object Dependencies {
     "org.apache.httpcomponents" % "httpcore" % "4.4.4",
     "org.scalatest" %% "scalatest" % "3.0.0" % Test,
     "com.h2database" % "h2" % "1.4.196" % Test,
+    "commons-collections" % "commons-collections" % "3.2.2",
+    "commons-configuration" % "commons-configuration" % "1.7",
     "com.linkedin.tony" % "tony-core" % tonyVersion excludeAll(
       ExclusionRule(organization = "com.fasterxml.jackson.core"),
       ExclusionRule(organization = "org.apache.hadoop")
